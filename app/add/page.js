@@ -477,33 +477,42 @@ export default function AddFontPage() {
             <div key={cat} style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{label}</label>
               
-              <div className={styles.tagEditor}>
-                {fontTags[cat]?.map(tag => (
-                  <span key={tag} className={styles.tagBadge}>
-                    {tag}
-                    <button 
-                      onClick={() => handleRemoveTag(cat, tag)}
-                      style={{ background: 'none', border: 'none', color: 'inherit', marginLeft: '6px', cursor: 'pointer', opacity: 0.7 }}
-                    >&times;</button>
-                  </span>
-                ))}
-                
+              <div className={styles.tagEditor} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                 <form onSubmit={(e) => handleAddTag(e, cat)} style={{ display: 'flex', gap: '0.5rem' }}>
                   <input
                     type="text"
                     value={newTagInputs[cat] || ''}
                     onChange={(e) => setNewTagInputs(prev => ({ ...prev, [cat]: e.target.value }))}
-                    placeholder="輸入新標籤..."
+                    placeholder={`自訂${label}...`}
                     className={styles.tagInput}
-                    list={`suggestions-${cat}`}
+                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', width: '120px' }}
                   />
-                  <datalist id={`suggestions-${cat}`}>
-                    {allTags[cat]?.filter(t => !fontTags[cat]?.includes(t)).map(tag => (
-                      <option key={tag} value={tag} />
-                    ))}
-                  </datalist>
-                  <button type="submit" className="btn btn-secondary" style={{ padding: '0.4rem 1rem' }}>新增</button>
+                  <button type="submit" className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>+</button>
                 </form>
+
+                {fontTags[cat]?.map(tag => (
+                  <div key={tag} className={styles.filterTag} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--primary-color)', color: 'white', borderColor: 'var(--primary-color)' }}>
+                    {tag}
+                    <span style={{ cursor: 'pointer', opacity: 0.7 }} onClick={() => handleRemoveTag(cat, tag)}>&times;</span>
+                  </div>
+                ))}
+
+                {allTags[cat]?.filter(t => !fontTags[cat]?.includes(t)).map(tag => (
+                  <button 
+                    key={tag} 
+                    type="button"
+                    className={styles.filterTag} 
+                    onClick={() => {
+                      setFontTags(prev => ({
+                        ...prev,
+                        [cat]: [...(prev[cat] || []), tag]
+                      }));
+                    }}
+                    style={{ opacity: 0.7 }}
+                  >
+                    + {tag}
+                  </button>
+                ))}
               </div>
             </div>
           ))}

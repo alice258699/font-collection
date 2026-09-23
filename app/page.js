@@ -239,30 +239,44 @@ export default function Home() {
                     <div key={cat.key}>
                       <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>{cat.label}</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-                        {editingTagsFont.tags?.[cat.key]?.map(tag => (
-                          <div key={tag} className={styles.filterTag} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            {tag}
-                            <span style={{ cursor: 'pointer', opacity: 0.7 }} onClick={() => handleRemoveTag(cat.key, tag)}>&times;</span>
-                          </div>
-                        ))}
                         
                         <form onSubmit={(e) => handleAddTag(e, cat.key)} style={{ display: 'flex', gap: '0.5rem' }}>
                           <input 
                             type="text" 
                             value={newTagInputs[cat.key] || ''}
                             onChange={e => setNewTagInputs(prev => ({ ...prev, [cat.key]: e.target.value }))}
-                            placeholder={`新增${cat.label}...`}
+                            placeholder={`自訂${cat.label}...`}
                             className={styles.tagInput}
-                            list={`existing-tags-${cat.key}`}
                             style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', width: '120px' }}
                           />
-                          <datalist id={`existing-tags-${cat.key}`}>
-                            {allTags[cat.key]?.filter(t => !editingTagsFont.tags?.[cat.key]?.includes(t)).map(tag => (
-                              <option key={tag} value={tag} />
-                            ))}
-                          </datalist>
                           <button type="submit" className={styles.btnSecondary} style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>+</button>
                         </form>
+
+                        {editingTagsFont.tags?.[cat.key]?.map(tag => (
+                          <div key={tag} className={styles.filterTag} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', background: 'var(--primary-color)', color: 'white', borderColor: 'var(--primary-color)' }}>
+                            {tag}
+                            <span style={{ cursor: 'pointer', opacity: 0.7 }} onClick={() => handleRemoveTag(cat.key, tag)}>&times;</span>
+                          </div>
+                        ))}
+
+                        {allTags[cat.key]?.filter(t => !editingTagsFont.tags?.[cat.key]?.includes(t)).map(tag => (
+                          <button 
+                            key={tag} 
+                            className={styles.filterTag} 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const newTags = {
+                                ...editingTagsFont.tags,
+                                [cat.key]: [...(editingTagsFont.tags?.[cat.key] || []), tag]
+                              };
+                              setEditingTagsFont(prev => ({ ...prev, tags: newTags }));
+                              updateDoc(doc(db, 'fonts', editingTagsFont.id), { tags: newTags }).then(() => fetchFonts());
+                            }}
+                            style={{ opacity: 0.7 }}
+                          >
+                            + {tag}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   ))}
