@@ -148,12 +148,10 @@ export default function Home() {
         篩選標籤 Filters
       </button>
 
-      {isSidebarOpen && (
-        <div 
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, backdropFilter: 'blur(4px)' }} 
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      <div 
+        className={`${styles.mobileOverlay} ${isSidebarOpen ? styles.open : ''}`}
+        onClick={() => setIsSidebarOpen(false)}
+      />
 
       {/* Sidebar Filters */}
       <div className={`${styles.sidebarWrapper} ${isSidebarOpen ? styles.open : ''}`}>
@@ -218,9 +216,9 @@ export default function Home() {
                 style={{ cursor: 'zoom-in' }} 
               />
               <div className={styles.cardInfo}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                <div className={styles.cardHeader}>
                   <div className={styles.cardTitle}>{font.name}</div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                  <div className={styles.cardActions}>
                     <button className={styles.btnSecondary} onClick={() => setEditingTagsFont(font)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>編輯標籤</button>
                     <button className={styles.deleteBtn} onClick={() => handleDelete(font.id)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>刪除</button>
                   </div>

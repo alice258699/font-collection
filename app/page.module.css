@@ -96,9 +96,22 @@
   background: var(--bg-base);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.8rem;
   min-height: 100px;
   flex: 1;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.cardActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .cardTitle {
@@ -241,6 +254,22 @@
   margin-bottom: 1rem;
 }
 
+/* Mobile Overlay */
+.mobileOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.mobileOverlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 @media (min-width: 900px) {
   .dashboard {
     flex-direction: row;
@@ -254,19 +283,16 @@
     height: calc(100vh - 4rem);
     overflow-y: auto;
     padding-right: 1rem;
+    transform: none !important;
   }
   
-  .mobileFilterBtn {
+  .mobileFilterBtn, .mobileOverlay {
     display: none;
   }
 }
 
 @media (max-width: 899px) {
   .sidebarWrapper {
-    display: none; /* Hidden by default on mobile, handled by React state */
-  }
-  .sidebarWrapper.open {
-    display: block;
     position: fixed;
     top: 0;
     left: 0;
@@ -277,6 +303,11 @@
     padding: 2rem;
     box-shadow: 4px 0 24px rgba(0,0,0,0.2);
     overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+  .sidebarWrapper.open {
+    transform: translateX(0);
   }
   
   .mobileFilterBtn {
@@ -288,6 +319,9 @@
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 1rem;
+  }
+  .cardHeader {
+    flex-direction: column;
   }
   .cardTitle {
     font-size: 1rem;
