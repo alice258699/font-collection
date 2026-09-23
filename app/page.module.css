@@ -4,11 +4,19 @@
   gap: 2rem;
 }
 
+.mainContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebarWrapper {
+  display: block;
+}
+
 .filters {
   display: flex;
-  gap: 1rem;
-  overflow-x: auto;
-  padding-bottom: 1rem;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 /* Liquid Tag */
@@ -36,7 +44,7 @@
 }
 
 .filterTag.active {
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
   border: none;
   color: white;
   box-shadow: 
@@ -56,6 +64,8 @@
   border-radius: 24px;
   overflow: hidden;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -87,6 +97,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-height: 100px;
+  flex: 1;
 }
 
 .cardTitle {
@@ -222,9 +234,66 @@
   transform: scale(1.1);
 }
 
+/* Mobile Header Toggle */
+.mobileFilterBtn {
+  display: none;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 900px) {
+  .dashboard {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  
+  .sidebarWrapper {
+    flex: 0 0 250px;
+    position: sticky;
+    top: 2rem;
+    height: calc(100vh - 4rem);
+    overflow-y: auto;
+    padding-right: 1rem;
+  }
+  
+  .mobileFilterBtn {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .sidebarWrapper {
+    display: none; /* Hidden by default on mobile, handled by React state */
+  }
+  .sidebarWrapper.open {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: var(--bg-base);
+    z-index: 1000;
+    padding: 2rem;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.2);
+    overflow-y: auto;
+  }
+  
+  .mobileFilterBtn {
+    display: flex;
+  }
+}
+
 @media (max-width: 768px) {
   .grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1rem;
+  }
+  .cardTitle {
+    font-size: 1rem;
+  }
+  .cardInfo {
+    padding: 0.8rem;
   }
   .modalOverlay {
     padding: 1rem;

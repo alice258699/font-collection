@@ -10,8 +10,9 @@ export default function Home() {
   const { theme } = useTheme();
   const [fonts, setFonts] = useState([]);
   const [filteredFonts, setFilteredFonts] = useState([]);
-  const [activeTag, setActiveTag] = useState('All');
+  const [activeTags, setActiveTags] = useState([]);
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const [previewImageFont, setPreviewImageFont] = useState(null);
   const [editingTagsFont, setEditingTagsFont] = useState(null);
@@ -57,15 +58,26 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (activeTag === 'All') {
+    if (activeTags.length === 0) {
       setFilteredFonts(fonts);
     } else {
       setFilteredFonts(fonts.filter(f => {
         if (!f.tags) return false;
-        return Object.values(f.tags).flat().includes(activeTag);
+        const fontTagsFlat = Object.values(f.tags).flat();
+        return activeTags.every(tag => fontTagsFlat.includes(tag));
       }));
     }
-  }, [activeTag, fonts]);
+  }, [activeTags, fonts]);
+
+  const toggleTag = (tag) => {
+    if (tag === 'All') {
+      setActiveTags([]);
+    } else {
+      setActiveTags(prev => 
+        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+      );
+    }
+  };
 
   const handleDelete = async (id) => {
     if (confirm('確定要刪除這個字體嗎？')) {
@@ -126,40 +138,66 @@ export default function Home() {
   return (
     <div className={styles.dashboard}>
       
-      {/* Filters */}
-      <div className={styles.filters} style={{ flexDirection: 'column', gap: '1rem', paddingBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button 
-            className={`${styles.filterTag} ${activeTag === 'All' ? styles.active : ''}`}
-            onClick={() => setActiveTag('All')}
-          >
-            全部 All
-          </button>
-        </div>
+      <button 
+        className={`btn btn-secondary ${styles.mobileFilterBtn}`} 
+        onClick={() => setIsSidebarOpen(true)}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight: '8px'}}>
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        篩選標籤 Filters
+      </button>
 
-        {[{key: 'type', label: '字體類型'}, {key: 'language', label: '語言'}, {key: 'style', label: '風格'}, {key: 'other', label: '其他'}].map(cat => (
-          allTags[cat.key]?.length > 0 && (
-            <div key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', minWidth: '80px', fontWeight: '500' }}>
-                {cat.label}
+      {isSidebarOpen && (
+        <div 
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, backdropFilter: 'blur(4px)' }} 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Filters */}
+      <div className={`${styles.sidebarWrapper} ${isSidebarOpen ? styles.open : ''}`}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>篩選 Filters</h3>
+          {isSidebarOpen && (
+             <button onClick={() => setIsSidebarOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>&times;</button>
+          )}
+        </div>
+        <div className={styles.filters}>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <button 
+              className={`${styles.filterTag} ${activeTags.length === 0 ? styles.active : ''}`}
+              onClick={() => toggleTag('All')}
+            >
+              全部 All
+            </button>
+          </div>
+
+          {[{key: 'type', label: '字體類型'}, {key: 'language', label: '語言'}, {key: 'style', label: '風格'}, {key: 'other', label: '其他'}].map(cat => (
+            allTags[cat.key]?.length > 0 && (
+              <div key={cat.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                  {cat.label}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {allTags[cat.key].map(tag => (
+                    <button 
+                      key={tag}
+                      className={`${styles.filterTag} ${activeTags.includes(tag) ? styles.active : ''}`}
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {allTags[cat.key].map(tag => (
-                  <button 
-                    key={tag}
-                    className={`${styles.filterTag} ${activeTag === tag ? styles.active : ''}`}
-                    onClick={() => setActiveTag(tag)}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )
-        ))}
+            )
+          ))}
+        </div>
       </div>
 
-      {/* Grid */}
+      {/* Main Content Grid */}
+      <div className={styles.mainContent}>
       {filteredFonts.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '4rem' }}>
           尚無字體，請點擊右上角「新增字體」。
@@ -198,6 +236,7 @@ export default function Home() {
           })}
         </div>
       )}
+      </div>
 
       {/* Image Preview Modal */}
       {typeof document !== 'undefined' && previewImageFont && createPortal(

@@ -416,13 +416,13 @@ export default function AddFontPage() {
     try {
       const canvas = canvasRef.current;
       
-      // Generate Light image (Scaled down to 50% to save space in Firestore)
-      drawCanvasCore(true, 0.5);
-      const base64ImageLight = canvas.toDataURL('image/jpeg', 0.5);
+      // Generate Light image (Use full resolution WebP for sharp text, small file size)
+      drawCanvasCore(true, 1);
+      const base64ImageLight = canvas.toDataURL('image/webp', 0.6);
       
-      // Generate Dark image (Scaled down to 50% to save space in Firestore)
-      drawCanvasCore(false, 0.5);
-      const base64ImageDark = canvas.toDataURL('image/jpeg', 0.5);
+      // Generate Dark image (Use full resolution WebP for sharp text, small file size)
+      drawCanvasCore(false, 1);
+      const base64ImageDark = canvas.toDataURL('image/webp', 0.6);
       
       // Restore current theme preview at full resolution
       drawCanvasCore(theme === 'light', 1);

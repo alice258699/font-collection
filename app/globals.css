@@ -17,13 +17,13 @@
   --text-secondary: #515154;
   
   /* Accents */
-  --accent-blue: #5e5ce6;
-  --accent-purple: #bf5af2;
+  --accent-blue: #0a84ff;
+  --accent-green: #30d158;
   --accent-cyan: #32ade6;
   
   /* Orbs */
-  --orb-1: rgba(94, 92, 230, 0.3);
-  --orb-2: rgba(191, 90, 242, 0.3);
+  --orb-1: rgba(10, 132, 255, 0.3);
+  --orb-2: rgba(48, 209, 88, 0.3);
   --orb-3: rgba(50, 173, 230, 0.3);
 }
 
@@ -44,14 +44,14 @@
   --text-secondary: #8b949e;
   
   /* Accents */
-  --accent-blue: #4d4bf5;
-  --accent-purple: #c457f5;
-  --accent-cyan: #36b7f3;
+  --accent-blue: #0a84ff;
+  --accent-green: #32d74b;
+  --accent-cyan: #64d2ff;
   
   /* Orbs */
-  --orb-1: rgba(77, 75, 245, 0.3);
-  --orb-2: rgba(196, 87, 245, 0.3);
-  --orb-3: rgba(54, 183, 243, 0.3);
+  --orb-1: rgba(10, 132, 255, 0.25);
+  --orb-2: rgba(50, 215, 75, 0.25);
+  --orb-3: rgba(100, 210, 255, 0.25);
 }
 
 * {
@@ -170,7 +170,7 @@ a {
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.5px;
-  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -191,6 +191,7 @@ a {
   -webkit-backdrop-filter: blur(12px);
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .btn::before {
@@ -208,18 +209,18 @@ a {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
   color: #fff;
   border: none;
   box-shadow: 
-    0 8px 20px rgba(94, 92, 230, 0.4),
+    0 8px 20px rgba(10, 132, 255, 0.4),
     inset 1px 1px 2px rgba(255, 255, 255, 0.5);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 
-    0 12px 25px rgba(94, 92, 230, 0.5),
+    0 12px 25px rgba(10, 132, 255, 0.5),
     inset 1px 1px 2px rgba(255, 255, 255, 0.6);
 }
 
@@ -268,7 +269,7 @@ a {
   border-color: var(--accent-blue);
   box-shadow: 
     inset 2px 2px 5px var(--glass-shadow),
-    0 0 0 3px rgba(94, 92, 230, 0.2);
+    0 0 0 3px rgba(10, 132, 255, 0.2);
 }
 
 /* Animations */
