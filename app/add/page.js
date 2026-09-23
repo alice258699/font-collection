@@ -223,7 +223,15 @@ export default function AddFontPage() {
         try {
           const font = opentype.parse(arrayBuffer);
           const emojisToTest = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
-          const supported = emojisToTest.filter(e => font.charToGlyphIndex(e) > 0);
+          const supported = emojisToTest.filter(e => {
+            try {
+              const glyphs = font.stringToGlyphs(e);
+              // Check if any glyph is valid (index > 0 means it's not the .notdef missing glyph)
+              return glyphs.length > 0 && glyphs.some(g => g.index > 0);
+            } catch (err) {
+              return false;
+            }
+          });
           setSupportedEmojis(supported.length > 0 ? supported : []);
         } catch(e) { setSupportedEmojis([]); }
         

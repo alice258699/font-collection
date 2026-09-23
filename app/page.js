@@ -234,9 +234,9 @@ export default function Home() {
 
               <div style={{ marginTop: '1.5rem' }}>
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>編輯標籤 Tags</h3>
-                <div className={styles.tagEditor} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div className={styles.tagEditor} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'flex-start' }}>
                   {[{key: 'type', label: '字體類型'}, {key: 'language', label: '語言'}, {key: 'style', label: '風格'}, {key: 'other', label: '其他'}].map(cat => (
-                    <div key={cat.key}>
+                    <div key={cat.key} style={{ width: '100%' }}>
                       <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>{cat.label}</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
                         
