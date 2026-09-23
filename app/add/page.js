@@ -104,17 +104,13 @@ export default function AddFontPage() {
 
     const nameWithoutExt = file.name.split('.').slice(0, -1).join('.');
 
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      
-        let fontNameObject = null;
-      
       try {
-        const font = opentype.parse(arrayBuffer);
-        fontNameObject = font.names;
-      } catch (err) {
-        console.warn('Opentype parse failed, attempting raw parse fallback', err);
-        // Raw parser fallback for name table
+        const arrayBuffer = await file.arrayBuffer();
+        
+        let foundEngName = nameWithoutExt;
+        let foundLocalName = null;
+        
+        // 1. Raw parser with TextDecoder for robust encoding support
         try {
           const data = new DataView(arrayBuffer);
           const numTables = data.getUint16(4);
@@ -129,68 +125,100 @@ export default function AddFontPage() {
           if (nameOffset) {
             const count = data.getUint16(nameOffset + 2);
             const stringOffset = data.getUint16(nameOffset + 4);
-            const rawNames = { fontFamily: {}, fullName: {} };
+            
             for (let i = 0; i < count; i++) {
               const recordOffset = nameOffset + 6 + i * 12;
               const platformID = data.getUint16(recordOffset);
+              const encodingID = data.getUint16(recordOffset + 2);
               const languageID = data.getUint16(recordOffset + 4);
               const nameID = data.getUint16(recordOffset + 6);
               const length = data.getUint16(recordOffset + 8);
               const offset = data.getUint16(recordOffset + 10);
-              if (nameID !== 1 && nameID !== 4) continue;
               
+              if (nameID !== 1 && nameID !== 4 && nameID !== 16) continue;
+              
+              const bytes = new Uint8Array(arrayBuffer, nameOffset + stringOffset + offset, length);
               let str = '';
-              const stringStart = nameOffset + stringOffset + offset;
-              if (platformID === 3 || platformID === 0) { // Windows (UTF-16BE) or Unicode
-                for (let j = 0; j < length; j += 2) str += String.fromCharCode(data.getUint16(stringStart + j));
-              } else if (platformID === 1) { // Mac
-                for (let j = 0; j < length; j++) str += String.fromCharCode(data.getUint8(stringStart + j));
+              
+              try {
+                if (platformID === 3 || platformID === 0) {
+                  // Windows / Unicode is always UTF-16BE
+                  str = new TextDecoder('utf-16be').decode(bytes);
+                } else if (platformID === 1) {
+                  // Mac encodings
+                  if (encodingID === 2) str = new TextDecoder('big5').decode(bytes);
+                  else if (encodingID === 1) str = new TextDecoder('shift-jis').decode(bytes);
+                  else if (encodingID === 25) str = new TextDecoder('gbk').decode(bytes);
+                  else if (encodingID === 3) str = new TextDecoder('euc-kr').decode(bytes);
+                  else str = new TextDecoder('macintosh').decode(bytes);
+                }
+              } catch (e) {
+                // If specific decoder fails, fallback to utf-8 just in case
+                str = new TextDecoder('utf-8').decode(bytes);
               }
-              if (str) {
-                const key = (nameID === 1) ? 'fontFamily' : 'fullName';
-                const langKey = (platformID === 1 && languageID === 2) ? 'zh-TW' : (platformID === 3 && languageID === 1028) ? 'zh-TW' : 'en';
-                rawNames[key][langKey] = str;
-              }
-            }
-            fontNameObject = rawNames;
-          }
-        } catch (fallbackErr) {
-          console.error('Fallback parse also failed', fallbackErr);
-        }
-      }
+              
+              // Clean up string
+              str = str.replace(/\0/g, '').trim();
+              
+              if (!str) continue;
 
-      if (fontNameObject) {
-        const names = fontNameObject;
-        
-        let engName = nameWithoutExt;
-        if (names.preferredFamily?.en) engName = names.preferredFamily.en;
-        else if (names.fontFamily?.en) engName = names.fontFamily.en;
-        else if (names.fullName?.en) engName = names.fullName.en;
-        
-        let localName = engName;
-        const hasLocalCharacters = (str) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(str);
-        let foundLocalName = null;
-        const fieldsToCheck = ['fontFamily', 'preferredFamily', 'fullName'];
-        for (const field of fieldsToCheck) {
-          if (names[field]) {
-            const values = Object.values(names[field]);
-            const localVal = values.find(v => typeof v === 'string' && hasLocalCharacters(v));
-            if (localVal) {
-              foundLocalName = localVal;
-              break;
+              const hasLocalCharacters = (s) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(s);
+              
+              if (hasLocalCharacters(str)) {
+                if (!foundLocalName) foundLocalName = str;
+              } else {
+                // Keep the shortest english name that isn't just "Regular"
+                if (str.toLowerCase() !== 'regular' && str.length > 2) {
+                  if (foundEngName === nameWithoutExt || str.length < foundEngName.length) {
+                    foundEngName = str;
+                  }
+                }
+              }
             }
           }
+        } catch (rawErr) {
+          console.error('Raw parse failed', rawErr);
         }
-        
-        if (foundLocalName) {
-          localName = foundLocalName;
-        } else if (names.fontFamily) {
-          const otherKeys = Object.keys(names.fontFamily).filter(k => k !== 'en' && !k.includes('mac'));
-          if (otherKeys.length > 0) localName = names.fontFamily[otherKeys[0]];
+
+        // 2. Fallback to opentype.js if raw parser didn't find anything
+        if (!foundLocalName || foundEngName === nameWithoutExt) {
+          try {
+            const font = opentype.parse(arrayBuffer);
+            const names = font.names;
+            
+            if (names) {
+              if (foundEngName === nameWithoutExt) {
+                if (names.preferredFamily?.en) foundEngName = names.preferredFamily.en;
+                else if (names.fontFamily?.en) foundEngName = names.fontFamily.en;
+                else if (names.fullName?.en) foundEngName = names.fullName.en;
+              }
+              
+              if (!foundLocalName) {
+                const hasLocalCharacters = (str) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(str);
+                const fieldsToCheck = ['fontFamily', 'preferredFamily', 'fullName'];
+                for (const field of fieldsToCheck) {
+                  if (names[field]) {
+                    const values = Object.values(names[field]);
+                    const localVal = values.find(v => typeof v === 'string' && hasLocalCharacters(v));
+                    if (localVal) {
+                      foundLocalName = localVal;
+                      break;
+                    }
+                  }
+                }
+                if (!foundLocalName && names.fontFamily) {
+                  const otherKeys = Object.keys(names.fontFamily).filter(k => k !== 'en' && !k.includes('mac'));
+                  if (otherKeys.length > 0) foundLocalName = names.fontFamily[otherKeys[0]];
+                }
+              }
+            }
+          } catch(e) {
+            console.warn('Opentype parse failed', e);
+          }
         }
-        
-        setFontEnglishName(engName);
-        setFontName(localName);
+
+        setFontEnglishName(foundEngName);
+        setFontName(foundLocalName || foundEngName);
         
         try {
           const font = opentype.parse(arrayBuffer);
@@ -198,14 +226,13 @@ export default function AddFontPage() {
           const supported = emojisToTest.filter(e => font.charToGlyphIndex(e) > 0);
           setSupportedEmojis(supported.length > 0 ? supported : []);
         } catch(e) { setSupportedEmojis([]); }
-      } else {
+        
+      } catch (err) {
+        console.error('File read failed', err);
         setFontEnglishName(nameWithoutExt);
         setFontName(nameWithoutExt);
         setSupportedEmojis([]);
       }
-    } catch (err) {
-      console.error('Failed to parse font:', err);
-    }
   };
 
   useEffect(() => {
