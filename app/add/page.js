@@ -471,7 +471,7 @@ export default function AddFontPage() {
           上傳字體後，會即時顯示上方圖片預覽。確認無誤後點擊「匯出至字體大全」。
         </p>
 
-        <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
+        <div style={{ width: '100%', textAlign: 'left', marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
           <h3 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: '600' }}>標籤設定 (選填)</h3>
           {ALL_CATEGORIES.map(({ key: cat, label }) => (
             <div key={cat} style={{ marginBottom: '1.5rem' }}>
