@@ -39,6 +39,7 @@ export default function AddFontPage() {
 
   const canvasRef = useRef(null);
 
+
   useEffect(() => {
     // Fetch unique tags from Firestore fonts
     const fetchTags = async () => {
@@ -217,29 +218,79 @@ export default function AddFontPage() {
           }
         }
 
+        // ... opentype fallback handles foundEngName, foundLocalName ...
         setFontEnglishName(foundEngName);
         setFontName(foundLocalName || foundEngName);
         
+        // 3. Raw cmap parser to extract up to 10 emojis
+        let extractedEmojis = [];
         try {
-          const font = opentype.parse(arrayBuffer);
-          const emojisToTest = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
-          const supported = emojisToTest.filter(e => {
-            try {
-              const glyphs = font.stringToGlyphs(e);
-              // Check if any glyph is valid (index > 0 means it's not the .notdef missing glyph)
-              return glyphs.length > 0 && glyphs.some(g => g.index > 0);
-            } catch (err) {
-              return false;
+          const data = new DataView(arrayBuffer);
+          let cmapOffset = 0;
+          for (let i = 0; i < data.getUint16(4); i++) {
+            const tag = String.fromCharCode(data.getUint8(12+i*16), data.getUint8(12+i*16+1), data.getUint8(12+i*16+2), data.getUint8(12+i*16+3));
+            if (tag === 'cmap') { cmapOffset = data.getUint32(12+i*16+8); break; }
+          }
+          
+          if (cmapOffset) {
+            let format12Offset = 0, format4Offset = 0;
+            const numRecords = data.getUint16(cmapOffset + 2);
+            for (let i = 0; i < numRecords; i++) {
+              const subtableOffset = cmapOffset + data.getUint32(cmapOffset + 4 + i * 8 + 4);
+              const format = data.getUint16(subtableOffset);
+              if (format === 12) format12Offset = subtableOffset;
+              if (format === 4) format4Offset = subtableOffset;
             }
-          });
-          setSupportedEmojis(supported.length > 0 ? supported : []);
-        } catch(e) { setSupportedEmojis([]); }
+
+            const emojiRanges = [
+              [0x1F600, 0x1F64F], [0x1F300, 0x1F5FF], [0x1F680, 0x1F6FF],
+              [0x1F900, 0x1F9FF], [0x1FA70, 0x1FAFF], [0x2600, 0x26FF], [0x2700, 0x27BF]
+            ];
+            const foundEmojis = new Set();
+
+            const checkRange = (startChar, endChar) => {
+              for (const [eStart, eEnd] of emojiRanges) {
+                const overlapStart = Math.max(startChar, eStart);
+                const overlapEnd = Math.min(endChar, eEnd);
+                for (let c = overlapStart; c <= overlapEnd; c++) {
+                  foundEmojis.add(String.fromCodePoint(c));
+                  if (foundEmojis.size >= 10) return true;
+                }
+              }
+              return false;
+            };
+
+            if (format12Offset) {
+              const numGroups = data.getUint32(format12Offset + 12);
+              for (let i = 0; i < numGroups; i++) {
+                const groupOffset = format12Offset + 16 + i * 12;
+                if (checkRange(data.getUint32(groupOffset), data.getUint32(groupOffset + 4))) break;
+              }
+            }
+
+            if (format4Offset && foundEmojis.size < 10) {
+              const segCount = data.getUint16(format4Offset + 6) / 2;
+              const endCodesOffset = format4Offset + 14;
+              const startCodesOffset = endCodesOffset + segCount * 2 + 2;
+              for (let i = 0; i < segCount; i++) {
+                if (checkRange(data.getUint16(startCodesOffset + i * 2), data.getUint16(endCodesOffset + i * 2))) break;
+              }
+            }
+            extractedEmojis = Array.from(foundEmojis);
+          }
+        } catch (cmapErr) { console.error('Raw cmap parse failed', cmapErr); }
+
+        if (extractedEmojis.length > 0) {
+          setSupportedEmojis(extractedEmojis);
+        } else {
+          setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
+        }
         
       } catch (err) {
         console.error('File read failed', err);
         setFontEnglishName(nameWithoutExt);
         setFontName(nameWithoutExt);
-        setSupportedEmojis([]);
+        setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
       }
   };
 
@@ -261,7 +312,7 @@ export default function AddFontPage() {
     if (fontLoaded) {
       drawCanvas();
     }
-  }, [fontLoaded, fontName, fontEnglishName, tcText, scText, jpText, enText, krText, bpmfText, theme, supportedEmojis]);
+  }, [fontLoaded, fontName, fontEnglishName, tcText, scText, jpText, enText, krText, bpmfText, supportedEmojis, theme]);
 
   const drawCanvas = () => {
     drawCanvasCore(theme === 'light', 1);
@@ -328,7 +379,7 @@ export default function AddFontPage() {
       { label: '日本語', text: jpText },
       { label: 'English', text: enText },
       { label: '한국어', text: krText },
-      { label: '繪文字', text: supportedEmojis.length > 0 ? supportedEmojis.join(' ') : '😀 😍 🤔 😂 😭 🥺 🥳 😎 🤯 👻' },
+      { label: '繪文字', text: supportedEmojis.join(' ') }
     ];
 
     languages.forEach((lang) => {
