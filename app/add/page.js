@@ -256,20 +256,22 @@ export default function AddFontPage() {
   }, [fontLoaded, fontName, fontEnglishName, tcText, scText, jpText, enText, krText, bpmfText, theme, supportedEmojis]);
 
   const drawCanvas = () => {
-    drawCanvasCore(theme === 'light');
+    drawCanvasCore(theme === 'light', 1);
   };
 
-  const drawCanvasCore = (isLight) => {
+  const drawCanvasCore = (isLight, scale = 1) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     
     // Set high resolution canvas
-    const width = 1200;
-    const height = 1060;
+    const width = 1200 * scale;
+    const height = 1060 * scale;
     canvas.width = width;
     canvas.height = height;
+
+    ctx.scale(scale, scale);
 
     const bgColor = isLight ? '#f4f4f6' : '#101418';
     const textColor = isLight ? '#1e1e1e' : '#e6edf3';
@@ -279,7 +281,7 @@ export default function AddFontPage() {
 
     // Fill background
     ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, 1200, 1060); // Use original coordinates since we scaled the context
 
     // Setup typography
     const fallback = 'system-ui, -apple-system, sans-serif';
@@ -290,19 +292,19 @@ export default function AddFontPage() {
     // Draw Title
     ctx.fillStyle = textColor;
     ctx.font = `normal 76px ${previewFont}`;
-    ctx.fillText(fontName || 'Font Name', width / 2, 180);
+    ctx.fillText(fontName || 'Font Name', 600, 180);
 
     // Draw English Name
     ctx.fillStyle = secondaryColor;
     ctx.font = `italic 40px ${previewFont}`;
-    ctx.fillText(fontEnglishName || 'Font English Name', width / 2, 260);
+    ctx.fillText(fontEnglishName || 'Font English Name', 600, 260);
 
     // Draw line separator
     ctx.strokeStyle = borderColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(width * 0.1, 340);
-    ctx.lineTo(width * 0.9, 340);
+    ctx.moveTo(120, 340);
+    ctx.lineTo(1080, 340);
     ctx.stroke();
 
     // Draw sentences
@@ -344,23 +346,24 @@ export default function AddFontPage() {
 
     setIsSaving(true);
     
-    const canvas = canvasRef.current;
-    
-    // Generate Light image
-    drawCanvasCore(true);
-    const base64ImageLight = canvas.toDataURL('image/jpeg', 0.7);
-    
-    // Generate Dark image
-    drawCanvasCore(false);
-    const base64ImageDark = canvas.toDataURL('image/jpeg', 0.7);
-    
-    // Restore current theme preview
-    drawCanvas();
-
     try {
+      const canvas = canvasRef.current;
+      
+      // Generate Light image (Scaled down to 50% to save space in Firestore)
+      drawCanvasCore(true, 0.5);
+      const base64ImageLight = canvas.toDataURL('image/jpeg', 0.5);
+      
+      // Generate Dark image (Scaled down to 50% to save space in Firestore)
+      drawCanvasCore(false, 0.5);
+      const base64ImageDark = canvas.toDataURL('image/jpeg', 0.5);
+      
+      // Restore current theme preview at full resolution
+      drawCanvasCore(theme === 'light', 1);
+
       // Because Firebase Storage now requires a Blaze (paid) plan, 
       // we bypass it entirely by storing the compressed Base64 JPEG directly into Firestore!
-      // Firestore has a 1MB limit per document, and these JPEGs are usually < 150KB each.
+      // Firestore has a 1MB limit per document. At 0.5 scale and 0.5 jpeg quality,
+      // the images are ~30KB each, easily fitting in the 1MB limit.
       const newFont = {
         name: fontName,
         englishName: fontEnglishName,
@@ -378,6 +381,7 @@ export default function AddFontPage() {
       console.error(err);
       alert('儲存失敗，請重試。');
       setIsSaving(false);
+      drawCanvasCore(theme === 'light', 1); // restore if it failed
     }
   };
 
