@@ -1,4 +1,5 @@
 import './globals.css';
+import Link from 'next/link';
 import { ThemeProvider } from '../components/ThemeProvider';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -23,8 +24,8 @@ export default function RootLayout({ children }) {
             <header className="header animate-in">
               <h1>字體大全 Font Collection</h1>
               <nav style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <a href="/" className="btn btn-secondary">所有字體</a>
-                <a href="/add" className="btn btn-primary">新增字體</a>
+                <Link href="/" className="btn btn-secondary">所有字體</Link>
+                <Link href="/add" className="btn btn-primary">新增字體</Link>
                 <ThemeToggle />
               </nav>
             </header>
