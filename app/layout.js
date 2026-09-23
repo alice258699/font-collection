@@ -23,7 +23,7 @@ export default function RootLayout({ children }) {
           <div className="container">
             <header className="header animate-in">
               <h1>字體大全 Font Collection</h1>
-              <nav style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <nav style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <Link href="/" className="btn btn-secondary">所有字體</Link>
                 <Link href="/add" className="btn btn-primary">新增字體</Link>
                 <ThemeToggle />
