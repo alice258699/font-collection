@@ -243,8 +243,11 @@ export default function AddFontPage() {
             }
 
             const emojiRanges = [
-              [0x1F600, 0x1F64F], [0x1F300, 0x1F5FF], [0x1F680, 0x1F6FF],
-              [0x1F900, 0x1F9FF], [0x1FA70, 0x1FAFF], [0x2600, 0x26FF], [0x2700, 0x27BF]
+              [0x1F600, 0x1F64F], // Emoticons (Faces)
+              [0x1F900, 0x1F9FF], // Supplemental Faces/Symbols
+              [0x1F300, 0x1F5FF], // Misc Symbols and Pictographs
+              [0x1F680, 0x1F6FF], // Transport and Map
+              [0x1FA70, 0x1FAFF]  // Symbols and Pictographs Extended-A
             ];
             const foundEmojis = new Set();
 
@@ -254,29 +257,34 @@ export default function AddFontPage() {
                 const overlapEnd = Math.min(endChar, eEnd);
                 for (let c = overlapStart; c <= overlapEnd; c++) {
                   foundEmojis.add(String.fromCodePoint(c));
-                  if (foundEmojis.size >= 10) return true;
                 }
               }
-              return false;
             };
 
             if (format12Offset) {
               const numGroups = data.getUint32(format12Offset + 12);
               for (let i = 0; i < numGroups; i++) {
                 const groupOffset = format12Offset + 16 + i * 12;
-                if (checkRange(data.getUint32(groupOffset), data.getUint32(groupOffset + 4))) break;
+                checkRange(data.getUint32(groupOffset), data.getUint32(groupOffset + 4));
               }
             }
 
-            if (format4Offset && foundEmojis.size < 10) {
-              const segCount = data.getUint16(format4Offset + 6) / 2;
-              const endCodesOffset = format4Offset + 14;
-              const startCodesOffset = endCodesOffset + segCount * 2 + 2;
-              for (let i = 0; i < segCount; i++) {
-                if (checkRange(data.getUint16(startCodesOffset + i * 2), data.getUint16(endCodesOffset + i * 2))) break;
-              }
-            }
-            extractedEmojis = Array.from(foundEmojis);
+            // We skip format 4 entirely because standard emojis are in Format 12 (BMP supplementary planes)
+            // and checking Format 4 often catches generic text symbols like stars or shapes.
+
+            let allEmojis = Array.from(foundEmojis);
+            
+            // Prioritize faces (0x1F600 - 0x1F64F) so they show up first
+            allEmojis.sort((a, b) => {
+              const codeA = a.codePointAt(0);
+              const codeB = b.codePointAt(0);
+              const isFaceA = (codeA >= 0x1F600 && codeA <= 0x1F64F) ? 1 : 0;
+              const isFaceB = (codeB >= 0x1F600 && codeB <= 0x1F64F) ? 1 : 0;
+              if (isFaceA !== isFaceB) return isFaceB - isFaceA;
+              return codeA - codeB;
+            });
+            
+            extractedEmojis = allEmojis.slice(0, 10);
           }
         } catch (cmapErr) { console.error('Raw cmap parse failed', cmapErr); }
 
