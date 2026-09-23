@@ -107,9 +107,60 @@ export default function AddFontPage() {
     try {
       const arrayBuffer = await file.arrayBuffer();
       
+        let fontNameObject = null;
+      
       try {
         const font = opentype.parse(arrayBuffer);
-        const names = font.names;
+        fontNameObject = font.names;
+      } catch (err) {
+        console.warn('Opentype parse failed, attempting raw parse fallback', err);
+        // Raw parser fallback for name table
+        try {
+          const data = new DataView(arrayBuffer);
+          const numTables = data.getUint16(4);
+          let nameOffset = 0;
+          for (let i = 0; i < numTables; i++) {
+            const tag = String.fromCharCode(data.getUint8(12+i*16), data.getUint8(12+i*16+1), data.getUint8(12+i*16+2), data.getUint8(12+i*16+3));
+            if (tag === 'name') {
+              nameOffset = data.getUint32(12+i*16+8);
+              break;
+            }
+          }
+          if (nameOffset) {
+            const count = data.getUint16(nameOffset + 2);
+            const stringOffset = data.getUint16(nameOffset + 4);
+            const rawNames = { fontFamily: {}, fullName: {} };
+            for (let i = 0; i < count; i++) {
+              const recordOffset = nameOffset + 6 + i * 12;
+              const platformID = data.getUint16(recordOffset);
+              const languageID = data.getUint16(recordOffset + 4);
+              const nameID = data.getUint16(recordOffset + 6);
+              const length = data.getUint16(recordOffset + 8);
+              const offset = data.getUint16(recordOffset + 10);
+              if (nameID !== 1 && nameID !== 4) continue;
+              
+              let str = '';
+              const stringStart = nameOffset + stringOffset + offset;
+              if (platformID === 3 || platformID === 0) { // Windows (UTF-16BE) or Unicode
+                for (let j = 0; j < length; j += 2) str += String.fromCharCode(data.getUint16(stringStart + j));
+              } else if (platformID === 1) { // Mac
+                for (let j = 0; j < length; j++) str += String.fromCharCode(data.getUint8(stringStart + j));
+              }
+              if (str) {
+                const key = (nameID === 1) ? 'fontFamily' : 'fullName';
+                const langKey = (platformID === 1 && languageID === 2) ? 'zh-TW' : (platformID === 3 && languageID === 1028) ? 'zh-TW' : 'en';
+                rawNames[key][langKey] = str;
+              }
+            }
+            fontNameObject = rawNames;
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback parse also failed', fallbackErr);
+        }
+      }
+
+      if (fontNameObject) {
+        const names = fontNameObject;
         
         let engName = nameWithoutExt;
         if (names.preferredFamily?.en) engName = names.preferredFamily.en;
@@ -141,11 +192,13 @@ export default function AddFontPage() {
         setFontEnglishName(engName);
         setFontName(localName);
         
-        const emojisToTest = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
-        const supported = emojisToTest.filter(e => font.charToGlyphIndex(e) > 0);
-        setSupportedEmojis(supported.length > 0 ? supported : []);
-      } catch (err) {
-        console.warn('Opentype parse failed, fallback to filename', err);
+        try {
+          const font = opentype.parse(arrayBuffer);
+          const emojisToTest = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
+          const supported = emojisToTest.filter(e => font.charToGlyphIndex(e) > 0);
+          setSupportedEmojis(supported.length > 0 ? supported : []);
+        } catch(e) { setSupportedEmojis([]); }
+      } else {
         setFontEnglishName(nameWithoutExt);
         setFontName(nameWithoutExt);
         setSupportedEmojis([]);
