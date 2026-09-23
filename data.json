@@ -1,0 +1,67 @@
+[
+  {
+    "id": "1790174246742",
+    "name": "jf柑仔蜜 1.0",
+    "englishName": "jf-kamabit-1.0",
+    "imagePathLight": "/previews/jf_kamabit_1_0_light_1790174246742.png",
+    "imagePathDark": "/previews/jf_kamabit_1_0_dark_1790174246742.png",
+    "tags": {
+      "type": [
+        "黑體"
+      ],
+      "language": [
+        "繁體中文",
+        "注音符號",
+        "emoji",
+        "替換字符"
+      ],
+      "style": [
+        "復古"
+      ],
+      "other": []
+    },
+    "createdAt": "2026-09-23T14:37:26.744Z"
+  },
+  {
+    "id": "1790174365188",
+    "name": "淚體 1.0 Regular",
+    "englishName": "tearsfont-1.0",
+    "imagePathLight": "/previews/tearsfont_1_0_light_1790174365188.png",
+    "imagePathDark": "/previews/tearsfont_1_0_dark_1790174365188.png",
+    "tags": {
+      "type": [],
+      "language": [],
+      "style": [],
+      "other": []
+    },
+    "createdAt": "2026-09-23T14:39:25.190Z"
+  },
+  {
+    "id": "1790174630972",
+    "name": "jf金萱那提2.1 九分糖",
+    "englishName": "jf-jinxuanlatte-2.1",
+    "imagePathLight": "/previews/jf_jinxuanlatte_2_1_light_1790174630972.png",
+    "imagePathDark": "/previews/jf_jinxuanlatte_2_1_dark_1790174630972.png",
+    "tags": {
+      "type": [],
+      "language": [],
+      "style": [],
+      "other": []
+    },
+    "createdAt": "2026-09-23T14:43:50.974Z"
+  },
+  {
+    "id": "1790174835458",
+    "name": "851マカポップ",
+    "englishName": "851MkPOP",
+    "imagePathLight": "/previews/851MkPOP_light_1790174835458.png",
+    "imagePathDark": "/previews/851MkPOP_dark_1790174835458.png",
+    "tags": {
+      "type": [],
+      "language": [],
+      "style": [],
+      "other": []
+    },
+    "createdAt": "2026-09-23T14:47:15.460Z"
+  }
+]

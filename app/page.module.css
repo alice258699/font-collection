@@ -1,0 +1,232 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.filters {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+/* Liquid Tag */
+.filterTag {
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 
+    0 4px 12px var(--glass-shadow),
+    inset 1px 1px 2px var(--glass-highlight);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.filterTag:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.filterTag.active {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  border: none;
+  color: white;
+  box-shadow: 
+    0 8px 20px rgba(94, 92, 230, 0.4),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 2rem;
+}
+
+/* Liquid Card */
+.card {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 
+    0 8px 24px var(--glass-shadow),
+    inset 1px 1px 2px var(--glass-highlight);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 
+    0 16px 40px var(--glass-shadow),
+    inset 1px 1px 2px var(--glass-highlight);
+}
+
+.cardImage {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  display: block;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.cardInfo {
+  padding: 1rem;
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.cardTags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tagBadge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(94, 92, 230, 0.15);
+  border: 1px solid rgba(94, 92, 230, 0.3);
+  color: var(--text-primary);
+  border-radius: 100px;
+  backdrop-filter: blur(4px);
+}
+
+/* Modal */
+.modalOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  overflow-y: auto;
+  overflow-x: hidden;
+  animation: fadeIn 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  text-align: center;
+}
+
+
+.modalWrapper {
+  display: inline-block;
+  padding: 4rem 2rem;
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+
+.modalContent {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 32px !important;
+}
+
+.modalImage {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  cursor: zoom-out;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.modalDetails {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.tagEditor {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tagInput {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 0.6rem 1rem;
+  border-radius: 100px;
+  outline: none;
+  width: 140px;
+  box-shadow: inset 1px 1px 3px var(--glass-shadow);
+  backdrop-filter: blur(8px);
+}
+
+.tagInput:focus {
+  border-color: var(--accent-blue);
+}
+
+.deleteBtn {
+  background: rgba(255, 69, 58, 0.15);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.deleteBtn:hover {
+  background: rgba(255, 69, 58, 0.25);
+  transform: translateY(-2px);
+}
+
+.closeBtn {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 101;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(12px);
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .modalOverlay {
+    padding: 1rem;
+  }
+}
