@@ -1,14 +1,15 @@
-"use client";
-
+'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useTheme } from '@/components/ThemeProvider';
 import styles from './page.module.css';
+import { useTheme } from '@/components/ThemeProvider';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 export default function Home() {
   const { theme } = useTheme();
   const [fonts, setFonts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [filteredFonts, setFilteredFonts] = useState([]);
   const [activeTag, setActiveTag] = useState('All');
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
   
@@ -16,127 +17,111 @@ export default function Home() {
   const [editingTagsFont, setEditingTagsFont] = useState(null);
   const [newTagInputs, setNewTagInputs] = useState({ type: '', language: '', style: '', other: '' });
 
+  const fetchFonts = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'fonts'));
+      const fontsData = [];
+      const uniqueTags = { type: new Set(), language: new Set(), style: new Set(), other: new Set() };
+      
+      querySnapshot.forEach((docSnap) => {
+        const font = { id: docSnap.id, ...docSnap.data() };
+        fontsData.push(font);
+        
+        if (font.tags) {
+          ['type', 'language', 'style', 'other'].forEach((key) => {
+            if (font.tags[key]) {
+              font.tags[key].forEach(tag => uniqueTags[key].add(tag));
+            }
+          });
+        }
+      });
+      
+      // Sort fonts by createdAt descending
+      fontsData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setFonts(fontsData);
+      setFilteredFonts(fontsData);
+      setAllTags({
+        type: Array.from(uniqueTags.type),
+        language: Array.from(uniqueTags.language),
+        style: Array.from(uniqueTags.style),
+        other: Array.from(uniqueTags.other)
+      });
+    } catch (err) {
+      console.error('Error fetching fonts from Firebase:', err);
+    }
+  };
+
   useEffect(() => {
     fetchFonts();
   }, []);
 
-  const fetchFonts = async () => {
+  useEffect(() => {
+    if (activeTag === 'All') {
+      setFilteredFonts(fonts);
+    } else {
+      setFilteredFonts(fonts.filter(f => {
+        if (!f.tags) return false;
+        return Object.values(f.tags).flat().includes(activeTag);
+      }));
+    }
+  }, [activeTag, fonts]);
+
+  const handleDelete = async (id) => {
+    if (confirm('確定要刪除這個字體嗎？')) {
+      try {
+        await deleteDoc(doc(db, 'fonts', id));
+        fetchFonts();
+      } catch (err) {
+        console.error('Failed to delete', err);
+      }
+    }
+  };
+
+  const handleRemoveTag = async (category, tagToRemove) => {
+    if (!editingTagsFont) return;
+    
+    const newTags = {
+      ...editingTagsFont.tags,
+      [category]: editingTagsFont.tags[category].filter(t => t !== tagToRemove)
+    };
+    
+    setEditingTagsFont(prev => ({ ...prev, tags: newTags }));
+    
     try {
-      const res = await fetch('/api/fonts');
-      const data = await res.json();
-      setFonts(data);
-      
-      // Extract unique tags per category
-      const categories = ['type', 'language', 'style', 'other'];
-      const tags = { type: new Set(), language: new Set(), style: new Set(), other: new Set() };
-      data.forEach(font => {
-        if (font.tags && !Array.isArray(font.tags)) {
-          categories.forEach(cat => {
-            font.tags[cat]?.forEach(tag => tags[cat].add(tag));
-          });
-        }
-      });
-      setAllTags({
-        type: Array.from(tags.type),
-        language: Array.from(tags.language),
-        style: Array.from(tags.style),
-        other: Array.from(tags.other)
-      });
-      setLoading(false);
+      await updateDoc(doc(db, 'fonts', editingTagsFont.id), { tags: newTags });
+      fetchFonts();
     } catch (err) {
-      console.error(err);
-      setLoading(false);
+      console.error('Failed to update tags', err);
     }
   };
 
   const handleAddTag = async (e, category) => {
     e.preventDefault();
-    const input = newTagInputs[category];
-    if (!input.trim() || !editingTagsFont) return;
-    
-    const newTag = input.trim();
-    if (editingTagsFont.tags?.[category]?.includes(newTag)) {
+    const newTag = newTagInputs[category]?.trim();
+    if (!newTag || !editingTagsFont) return;
+
+    const currentCatTags = editingTagsFont.tags?.[category] || [];
+    if (currentCatTags.includes(newTag)) {
       setNewTagInputs(prev => ({ ...prev, [category]: '' }));
       return;
     }
 
-    const updatedTags = {
+    const newTags = {
       ...editingTagsFont.tags,
-      [category]: [...(editingTagsFont.tags?.[category] || []), newTag]
+      [category]: [...currentCatTags, newTag]
     };
-    await updateTags(editingTagsFont.id, updatedTags);
+
+    setEditingTagsFont(prev => ({ ...prev, tags: newTags }));
     setNewTagInputs(prev => ({ ...prev, [category]: '' }));
-  };
-
-  const handleRemoveTag = async (category, tagToRemove) => {
-    if (!editingTagsFont) return;
-    const updatedTags = {
-      ...editingTagsFont.tags,
-      [category]: editingTagsFont.tags[category].filter(t => t !== tagToRemove)
-    };
-    await updateTags(editingTagsFont.id, updatedTags);
-  };
-
-  const updateTags = async (id, tags) => {
+    
     try {
-      const res = await fetch(`/api/fonts/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags })
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setEditingTagsFont(updated);
-        // Update main list
-        setFonts(fonts.map(f => f.id === id ? updated : f));
-        
-        // Update tags list
-        const categories = ['type', 'language', 'style', 'other'];
-        const tags = { type: new Set(), language: new Set(), style: new Set(), other: new Set() };
-        fonts.map(f => f.id === id ? updated : f).forEach(font => {
-          if (font.tags && !Array.isArray(font.tags)) {
-            categories.forEach(cat => {
-              font.tags[cat]?.forEach(tag => tags[cat].add(tag));
-            });
-          }
-        });
-        setAllTags({
-          type: Array.from(tags.type),
-          language: Array.from(tags.language),
-          style: Array.from(tags.style),
-          other: Array.from(tags.other)
-        });
-      }
+      await updateDoc(doc(db, 'fonts', editingTagsFont.id), { tags: newTags });
+      fetchFonts();
     } catch (err) {
-      console.error(err);
+      console.error('Failed to update tags', err);
     }
   };
-
-  const handleDelete = async (id) => {
-    if (!confirm('確定要刪除這個字體嗎？')) return;
-    try {
-      const res = await fetch(`/api/fonts/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (editingTagsFont?.id === id) setEditingTagsFont(null);
-        if (previewImageFont?.id === id) setPreviewImageFont(null);
-        fetchFonts();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Filter fonts
-  const filteredFonts = activeTag === 'All' 
-    ? fonts 
-    : fonts.filter(f => {
-        if (!f.tags || Array.isArray(f.tags)) return false;
-        return Object.values(f.tags).flat().includes(activeTag);
-      });
-
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: '2rem' }}>載入中...</div>;
-  }
 
   return (
     <div className={styles.dashboard}>
@@ -184,7 +169,7 @@ export default function Home() {
           {filteredFonts.map(font => {
             const displayImage = (theme === 'dark' && font.imagePathDark) ? font.imagePathDark :
                                  (theme === 'light' && font.imagePathLight) ? font.imagePathLight :
-                                 font.imagePath;
+                                 font.imagePathLight || font.imagePathDark; // Default
             return (
             <div key={font.id} className={styles.card}>
               <img 
@@ -224,7 +209,7 @@ export default function Home() {
           <img 
             src={(theme === 'dark' && previewImageFont.imagePathDark) ? previewImageFont.imagePathDark :
                  (theme === 'light' && previewImageFont.imagePathLight) ? previewImageFont.imagePathLight :
-                 previewImageFont.imagePath} 
+                 previewImageFont.imagePathLight || previewImageFont.imagePathDark} 
             alt={previewImageFont.name} 
             style={{ maxWidth: 'min(90vw, 800px)', maxHeight: '85vh', width: 'auto', height: 'auto', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', cursor: 'zoom-out' }}
             onClick={e => e.stopPropagation()}
@@ -264,7 +249,7 @@ export default function Home() {
                         <form onSubmit={(e) => handleAddTag(e, cat.key)} style={{ display: 'flex', gap: '0.5rem' }}>
                           <input 
                             type="text" 
-                            value={newTagInputs[cat.key]}
+                            value={newTagInputs[cat.key] || ''}
                             onChange={e => setNewTagInputs(prev => ({ ...prev, [cat.key]: e.target.value }))}
                             placeholder={`新增${cat.label}...`}
                             className={styles.tagInput}
@@ -272,7 +257,7 @@ export default function Home() {
                             style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', width: '120px' }}
                           />
                           <datalist id={`existing-tags-${cat.key}`}>
-                            {allTags[cat.key]?.map(tag => (
+                            {allTags[cat.key]?.filter(t => !editingTagsFont.tags?.[cat.key]?.includes(t)).map(tag => (
                               <option key={tag} value={tag} />
                             ))}
                           </datalist>

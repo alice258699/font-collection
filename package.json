@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "firebase": "^12.19.0",
     "fontkit": "^2.0.4",
     "next": "16.3.5",
     "opentype.js": "^2.0.0",

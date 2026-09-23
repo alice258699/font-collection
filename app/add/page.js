@@ -1,54 +1,80 @@
-"use client";
+'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
+import { db, storage } from '@/lib/firebase';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import * as opentype from 'opentype.js';
 import styles from './page.module.css';
 
 const ALL_CATEGORIES = [
-  { key: 'type', label: '字體類型' },
-  { key: 'language', label: '語言' },
-  { key: 'style', label: '風格' },
-  { key: 'other', label: '其他' }
+  { key: 'type', label: '字體種類' },
+  { key: 'language', label: '語言支援' },
+  { key: 'style', label: '風格感受' },
+  { key: 'other', label: '其他標籤' }
 ];
 
 export default function AddFontPage() {
-  const { theme } = useTheme();
   const router = useRouter();
-  const canvasRef = useRef(null);
+  const { theme } = useTheme();
   const [fontFile, setFontFile] = useState(null);
+  const [fontUrl, setFontUrl] = useState('');
   const [fontName, setFontName] = useState('');
   const [fontEnglishName, setFontEnglishName] = useState('');
-  
+  const [fontLoaded, setFontLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [fontTags, setFontTags] = useState({ type: [], language: [], style: [], other: [] });
+  const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
+  const [newTagInputs, setNewTagInputs] = useState({ type: '', language: '', style: '', other: '' });
+
   const [tcText, setTcText] = useState('你有檢查那個飯糰嗎？');
   const [bpmfText, setBpmfText] = useState('ㄅㄆㄇㄈˇˋˊ˙');
   const [scText, setScText] = useState('你有检查那个饭团吗？');
   const [jpText, setJpText] = useState('あのおにぎりを確認しましたか？');
   const [enText, setEnText] = useState('Have you checked that rice ball?');
   const [krText, setKrText] = useState('그 주먹밥 확인했어요?');
-  
-  const [isSaving, setIsSaving] = useState(false);
-  const [fontLoaded, setFontLoaded] = useState(false);
-  const [previewFontFamily, setPreviewFontFamily] = useState('CustomPreviewFont');
   const [supportedEmojis, setSupportedEmojis] = useState([]);
 
-  // Tags state
-  const [fontTags, setFontTags] = useState({ type: [], language: [], style: [], other: [] });
-  const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
-  const [newTagInputs, setNewTagInputs] = useState({ type: '', language: '', style: '', other: '' });
+  const canvasRef = useRef(null);
 
   useEffect(() => {
-    fetch('/api/tags').then(res => res.json()).then(data => {
-      setAllTags(data);
-    }).catch(console.error);
+    // Fetch unique tags from Firestore fonts
+    const fetchTags = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'fonts'));
+        const uniqueTags = { type: new Set(), language: new Set(), style: new Set(), other: new Set() };
+        
+        querySnapshot.forEach((doc) => {
+          const font = doc.data();
+          if (font.tags) {
+            ALL_CATEGORIES.forEach(({ key }) => {
+              if (font.tags[key]) {
+                font.tags[key].forEach(tag => uniqueTags[key].add(tag));
+              }
+            });
+          }
+        });
+        
+        setAllTags({
+          type: Array.from(uniqueTags.type),
+          language: Array.from(uniqueTags.language),
+          style: Array.from(uniqueTags.style),
+          other: Array.from(uniqueTags.other)
+        });
+      } catch (err) {
+        console.error('Failed to fetch tags:', err);
+      }
+    };
+    fetchTags();
   }, []);
 
   const handleAddTag = (e, category) => {
     e.preventDefault();
-    const input = newTagInputs[category];
-    if (!input.trim()) return;
-    
-    const newTag = input.trim();
+    const newTag = newTagInputs[category].trim();
+    if (!newTag) return;
+
     if (fontTags[category]?.includes(newTag)) {
       setNewTagInputs(prev => ({ ...prev, [category]: '' }));
       return;
@@ -68,160 +94,123 @@ export default function AddFontPage() {
     }));
   };
 
-  // Handle file upload and load font
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const url = URL.createObjectURL(file);
     setFontFile(file);
-    
+    setFontUrl(url);
+
     const nameWithoutExt = file.name.split('.').slice(0, -1).join('.');
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       
-      // Use fontkit on the server via our API route
       try {
-        const formData = new FormData();
-        formData.append('file', file);
+        const font = opentype.parse(arrayBuffer);
+        const names = font.names;
         
-        const parseRes = await fetch('/api/parse', {
-          method: 'POST',
-          body: formData
-        });
+        let engName = nameWithoutExt;
+        if (names.preferredFamily?.en) engName = names.preferredFamily.en;
+        else if (names.fontFamily?.en) engName = names.fontFamily.en;
+        else if (names.fullName?.en) engName = names.fullName.en;
         
-        if (parseRes.ok) {
-          const names = await parseRes.json();
-          
-          let engName = nameWithoutExt;
-          
-          // Try to get English name
-          if (names.preferredFamily?.en) {
-            engName = names.preferredFamily.en;
-          } else if (names.fontFamily?.en) {
-            engName = names.fontFamily.en;
-          } else if (names.fullName?.en) {
-            engName = names.fullName.en;
-          }
-          
-          let localName = engName;
-          
-          // Helper to check for CJK, Hiragana, Katakana, or Hangul characters
-          const hasLocalCharacters = (str) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(str);
-          let foundLocalName = null;
-          
-          const fieldsToCheck = ['fontFamily', 'preferredFamily', 'fullName'];
-          
-          for (const field of fieldsToCheck) {
-            if (names[field]) {
-              const values = Object.values(names[field]);
-              const localVal = values.find(v => typeof v === 'string' && hasLocalCharacters(v));
-              if (localVal) {
-                foundLocalName = localVal;
-                break;
-              }
+        let localName = engName;
+        const hasLocalCharacters = (str) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(str);
+        let foundLocalName = null;
+        const fieldsToCheck = ['fontFamily', 'preferredFamily', 'fullName'];
+        for (const field of fieldsToCheck) {
+          if (names[field]) {
+            const values = Object.values(names[field]);
+            const localVal = values.find(v => typeof v === 'string' && hasLocalCharacters(v));
+            if (localVal) {
+              foundLocalName = localVal;
+              break;
             }
           }
-          
-          if (foundLocalName) {
-            localName = foundLocalName;
-          } else if (names.fontFamily) {
-            const otherKeys = Object.keys(names.fontFamily).filter(k => k !== 'en' && !k.includes('mac'));
-            if (otherKeys.length > 0) {
-              localName = names.fontFamily[otherKeys[0]];
-            }
-          }
-          
-          console.log('Extracted Font Names Metadata (Fontkit):', names);
-          setFontEnglishName(engName);
-          setFontName(localName);
-          if (names.supportedEmojis && names.supportedEmojis.length > 0) {
-            setSupportedEmojis(names.supportedEmojis);
-          } else {
-            setSupportedEmojis([]);
-          }
-        } else {
-          console.warn('API parse failed, fallback to filename');
-          setFontEnglishName(nameWithoutExt);
-          setFontName(nameWithoutExt);
-          setSupportedEmojis([]);
         }
-      } catch (parseErr) {
-        console.warn('Failed to parse font metadata via API:', parseErr);
+        
+        if (foundLocalName) {
+          localName = foundLocalName;
+        } else if (names.fontFamily) {
+          const otherKeys = Object.keys(names.fontFamily).filter(k => k !== 'en' && !k.includes('mac'));
+          if (otherKeys.length > 0) localName = names.fontFamily[otherKeys[0]];
+        }
+        
+        setFontEnglishName(engName);
+        setFontName(localName);
+        
+        const emojisToTest = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
+        const supported = emojisToTest.filter(e => font.charToGlyphIndex(e) > 0);
+        setSupportedEmojis(supported.length > 0 ? supported : []);
+      } catch (err) {
+        console.warn('Opentype parse failed, fallback to filename', err);
         setFontEnglishName(nameWithoutExt);
         setFontName(nameWithoutExt);
+        setSupportedEmojis([]);
       }
-
-      const uniqueFontFamily = `PreviewFont_${Date.now()}`;
-      const customFont = new FontFace(uniqueFontFamily, arrayBuffer);
-      const loadedFont = await customFont.load();
-      
-      // Remove any previously loaded preview fonts to prevent fallback stacking
-      document.fonts.forEach(f => {
-        if (f.family.startsWith('PreviewFont_') || f.family === 'CustomPreviewFont') {
-          document.fonts.delete(f);
-        }
-      });
-      
-      document.fonts.add(loadedFont);
-      setPreviewFontFamily(uniqueFontFamily);
-      setFontLoaded(true);
     } catch (err) {
-      console.error('Failed to load font:', err);
-      alert('字體載入失敗，請確認檔案格式是否正確 (.ttf, .otf, .woff)。');
+      console.error('Failed to parse font:', err);
     }
   };
 
-  // Draw on canvas whenever inputs, font, or theme change
   useEffect(() => {
-    drawCanvas();
-  }, [fontName, fontEnglishName, tcText, scText, jpText, enText, krText, fontLoaded, theme, supportedEmojis]);
+    if (!fontUrl) return;
+
+    const fontFace = new FontFace('PreviewFont', `url(${fontUrl})`);
+    fontFace.load().then((loadedFont) => {
+      document.fonts.add(loadedFont);
+      setFontLoaded(true);
+    }).catch(console.error);
+
+    return () => {
+      // Cleanup fontface on unmount if needed
+    };
+  }, [fontUrl]);
+
+  useEffect(() => {
+    if (fontLoaded) {
+      drawCanvas();
+    }
+  }, [fontLoaded, fontName, fontEnglishName, tcText, scText, jpText, enText, krText, bpmfText, theme, supportedEmojis]);
 
   const drawCanvas = () => {
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    drawCanvasCore(isLight);
+    drawCanvasCore(theme === 'light');
   };
 
   const drawCanvasCore = (isLight) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
     
-    // Set high resolution for Retina displays
+    // Set high resolution canvas
     const width = 1200;
-    const height = 1060; // increased height for emoji & bopomofo rows
+    const height = 1060;
     canvas.width = width;
     canvas.height = height;
 
-    // Dynamic Colors based on theme
-    const bgColor = isLight ? '#f0f0f3' : '#0f1016';
-    const textColor = isLight ? '#1d1d1f' : '#ffffff';
-    const accentColor = isLight ? '#5e5ce6' : '#4d4bf5';
-    const secondaryColor = isLight ? '#515154' : '#8b949e';
-    const borderColor = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+    const bgColor = isLight ? '#f4f4f6' : '#101418';
+    const textColor = isLight ? '#1e1e1e' : '#e6edf3';
+    const secondaryColor = isLight ? '#666666' : '#8b949e';
+    const accentColor = isLight ? '#4f46e5' : '#6366f1';
+    const borderColor = isLight ? '#e5e7eb' : '#30363d';
 
-    // Background
+    // Fill background
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, width, height);
 
-    // Subtle background gradient/glow
-    const gradient = ctx.createRadialGradient(width * 0.15, height * 0.5, 0, width * 0.15, height * 0.5, width * 0.6);
-    gradient.addColorStop(0, isLight ? 'rgba(94, 92, 230, 0.15)' : 'rgba(77, 75, 245, 0.15)');
-    gradient.addColorStop(1, 'transparent');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Text defaults
+    // Setup typography
+    const fallback = 'system-ui, -apple-system, sans-serif';
+    const previewFont = 'PreviewFont, ' + fallback;
+    
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Fallback font stack (黑體 Sans-serif for missing characters)
-    const fallback = '"PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif';
-    const previewFont = fontLoaded ? `"${previewFontFamily}", ${fallback}` : fallback;
-
-    // Draw Font Name (Title)
+    
+    // Draw Title
     ctx.fillStyle = textColor;
-    ctx.font = `normal 80px ${previewFont}`;
-    ctx.fillText(fontName || '字體名稱 Font Name', width / 2, 180);
+    ctx.font = `normal 76px ${previewFont}`;
+    ctx.fillText(fontName || 'Font Name', width / 2, 180);
 
     // Draw English Name
     ctx.fillStyle = secondaryColor;
@@ -289,19 +278,28 @@ export default function AddFontPage() {
     drawCanvas();
 
     try {
-      const res = await fetch('/api/fonts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fontName,
-          fontEnglishName,
-          base64ImageLight,
-          base64ImageDark,
-          defaultTags: fontTags
-        }),
-      });
+      const id = Date.now().toString();
+      const safeName = fontEnglishName.replace(/[^a-zA-Z0-9]/g, '_');
+      
+      const lightRef = ref(storage, `previews/${safeName}_light_${id}.png`);
+      const darkRef = ref(storage, `previews/${safeName}_dark_${id}.png`);
 
-      if (!res.ok) throw new Error('Failed to save');
+      await uploadString(lightRef, base64ImageLight, 'data_url');
+      const imagePathLight = await getDownloadURL(lightRef);
+
+      await uploadString(darkRef, base64ImageDark, 'data_url');
+      const imagePathDark = await getDownloadURL(darkRef);
+
+      const newFont = {
+        name: fontName,
+        englishName: fontEnglishName,
+        imagePathLight,
+        imagePathDark,
+        tags: fontTags,
+        createdAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, 'fonts'), newFont);
 
       // Redirect to home
       router.push('/');
