@@ -348,33 +348,24 @@ export default function AddFontPage() {
     
     // Generate Light image
     drawCanvasCore(true);
-    const base64ImageLight = canvas.toDataURL('image/png');
+    const base64ImageLight = canvas.toDataURL('image/jpeg', 0.7);
     
     // Generate Dark image
     drawCanvasCore(false);
-    const base64ImageDark = canvas.toDataURL('image/png');
+    const base64ImageDark = canvas.toDataURL('image/jpeg', 0.7);
     
     // Restore current theme preview
     drawCanvas();
 
     try {
-      const id = Date.now().toString();
-      const safeName = fontEnglishName.replace(/[^a-zA-Z0-9]/g, '_');
-      
-      const lightRef = ref(storage, `previews/${safeName}_light_${id}.png`);
-      const darkRef = ref(storage, `previews/${safeName}_dark_${id}.png`);
-
-      await uploadString(lightRef, base64ImageLight, 'data_url');
-      const imagePathLight = await getDownloadURL(lightRef);
-
-      await uploadString(darkRef, base64ImageDark, 'data_url');
-      const imagePathDark = await getDownloadURL(darkRef);
-
+      // Because Firebase Storage now requires a Blaze (paid) plan, 
+      // we bypass it entirely by storing the compressed Base64 JPEG directly into Firestore!
+      // Firestore has a 1MB limit per document, and these JPEGs are usually < 150KB each.
       const newFont = {
         name: fontName,
         englishName: fontEnglishName,
-        imagePathLight,
-        imagePathDark,
+        imagePathLight: base64ImageLight,
+        imagePathDark: base64ImageDark,
         tags: fontTags,
         createdAt: new Date().toISOString()
       };
