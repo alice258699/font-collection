@@ -204,20 +204,36 @@ export default function Home() {
 
   const extractFamilyAndWeight = (name) => {
     if (!name) return { family: 'Unknown Font', weight: 'Regular' };
-    const weightKeywords = ['thin', 'hairline', 'extralight', 'ultralight', 'light', 'regular', 'normal', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy', 'extrablack', 'ultrablack', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', '一分糖', '微糖', '半糖', '七分糖', '九分糖'];
     
-    let parts = name.trim().split(/\s+/);
+    // Exact match keywords (case insensitive). Must be separate words.
+    const exactWeights = ['el', 'ul', 'l', 'r', 'm', 'sb', 'db', 'b', 'eb', 'h', 'ub', 'bl', 'ubl', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9'];
+    
+    // Substring match keywords (can be attached to the name, e.g. "jf金萱半糖")
+    const subWeights = ['thin', 'hairline', 'extralight', 'ultralight', 'light', 'regular', 'normal', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy', 'extrablack', 'ultrablack', '一分糖', '微糖', '半糖', '七分糖', '九分糖'];
+    
+    let parts = name.trim().split(/[\s-]+/);
     if (parts.length > 1) {
-      const lastPart = parts[parts.length - 1];
-      if (weightKeywords.some(w => lastPart.toLowerCase().includes(w))) {
+      const lastPart = parts[parts.length - 1].toLowerCase();
+      
+      // Check exact matches first (e.g. "源流明體 EL" -> lastPart="el")
+      if (exactWeights.includes(lastPart)) {
         return {
-          family: parts.slice(0, -1).join(' '),
-          weight: lastPart
+          family: name.substring(0, name.length - parts[parts.length-1].length).trim().replace(/-$/, '').trim(),
+          weight: parts[parts.length - 1]
+        };
+      }
+      
+      // Check substring matches for the last part (e.g. "MyFont ExtraLight")
+      if (subWeights.some(w => lastPart.includes(w))) {
+        return {
+          family: name.substring(0, name.length - parts[parts.length-1].length).trim().replace(/-$/, '').trim(),
+          weight: parts[parts.length - 1]
         };
       }
     }
     
-    for (const w of weightKeywords) {
+    // Fallback: Check if the full name ends with a substring weight without a space (e.g. "jf金萱半糖")
+    for (const w of subWeights) {
       if (name.toLowerCase().endsWith(w.toLowerCase())) {
         const family = name.slice(0, -w.length).trim() || name;
         const weight = name.slice(-w.length);
