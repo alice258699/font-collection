@@ -24,6 +24,7 @@ export default function AddFontPage() {
   const [fontName, setFontName] = useState('');
   const [fontEnglishName, setFontEnglishName] = useState('');
   const [fontLoaded, setFontLoaded] = useState(false);
+  const [previewFontFamily, setPreviewFontFamily] = useState('PreviewFont');
   const [isSaving, setIsSaving] = useState(false);
   const [fontTags, setFontTags] = useState({ type: [], language: [], style: [], other: [] });
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
@@ -324,9 +325,11 @@ export default function AddFontPage() {
   useEffect(() => {
     if (!fontUrl) return;
 
-    const fontFace = new FontFace('PreviewFont', `url(${fontUrl})`);
+    const uniqueFamily = `PreviewFont_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+    const fontFace = new FontFace(uniqueFamily, `url(${fontUrl})`);
     fontFace.load().then((loadedFont) => {
       document.fonts.add(loadedFont);
+      setPreviewFontFamily(uniqueFamily);
       setFontLoaded(true);
     }).catch(console.error);
 
@@ -371,7 +374,7 @@ export default function AddFontPage() {
 
     // Setup typography
     const fallback = 'system-ui, -apple-system, sans-serif';
-    const previewFont = 'PreviewFont, ' + fallback;
+    const previewFont = `${previewFontFamily}, ` + fallback;
     
     ctx.textAlign = 'center';
     
