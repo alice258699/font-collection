@@ -37,6 +37,7 @@ export default function AddFontPage() {
   const [enText, setEnText] = useState('Have you checked that rice ball?');
   const [krText, setKrText] = useState('그 주먹밥 확인했어요?');
   const [supportedEmojis, setSupportedEmojis] = useState([]);
+  const [hasCustomEmojis, setHasCustomEmojis] = useState(false);
 
   const canvasRef = useRef(null);
 
@@ -271,12 +272,17 @@ export default function AddFontPage() {
             ];
             const foundEmojis = new Set();
 
-            const checkRange = (startChar, endChar) => {
+            const checkRange = (startChar, endChar, startGlyph) => {
               for (const [eStart, eEnd] of emojiRanges) {
                 const overlapStart = Math.max(startChar, eStart);
                 const overlapEnd = Math.min(endChar, eEnd);
                 for (let c = overlapStart; c <= overlapEnd; c++) {
-                  foundEmojis.add(String.fromCodePoint(c));
+                  // In Format 12, glyphID = startGlyph + (c - startChar)
+                  // If glyphID is 0, it is .notdef, meaning not actually supported
+                  const glyphId = startGlyph + (c - startChar);
+                  if (glyphId !== 0) {
+                    foundEmojis.add(String.fromCodePoint(c));
+                  }
                 }
               }
             };
@@ -285,7 +291,11 @@ export default function AddFontPage() {
               const numGroups = data.getUint32(format12Offset + 12);
               for (let i = 0; i < numGroups; i++) {
                 const groupOffset = format12Offset + 16 + i * 12;
-                checkRange(data.getUint32(groupOffset), data.getUint32(groupOffset + 4));
+                checkRange(
+                  data.getUint32(groupOffset), 
+                  data.getUint32(groupOffset + 4),
+                  data.getUint32(groupOffset + 8)
+                );
               }
             }
 
@@ -310,8 +320,10 @@ export default function AddFontPage() {
 
         if (extractedEmojis.length > 0) {
           setSupportedEmojis(extractedEmojis);
+          setHasCustomEmojis(true);
         } else {
           setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
+          setHasCustomEmojis(false);
         }
         
       } catch (err) {
@@ -319,6 +331,7 @@ export default function AddFontPage() {
         setFontEnglishName(nameWithoutExt);
         setFontName(nameWithoutExt);
         setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
+        setHasCustomEmojis(false);
       }
   };
 
@@ -421,7 +434,12 @@ export default function AddFontPage() {
 
       // Text
       ctx.fillStyle = textColor;
-      ctx.font = `normal 42px ${previewFont}`;
+      // Use fallback directly for emojis if the font doesn't actually support them
+      if (lang.label === '繪文字' && !hasCustomEmojis) {
+        ctx.font = `normal 42px ${fallback}`;
+      } else {
+        ctx.font = `normal 42px ${previewFont}`;
+      }
       ctx.fillText(lang.text, startX + 160, startY);
       
       startY += lineSpacing;
