@@ -235,96 +235,28 @@ export default function AddFontPage() {
         setFontEnglishName(foundEngName);
         setFontName(foundLocalName || foundEngName);
         
-        // 3. Raw cmap parser to extract up to 10 emojis
-        let extractedEmojis = [];
+        // 3. Check emoji support using opentype.js
+        const defaultEmojis = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
+        let hasCustom = false;
+        
         try {
-          const data = new DataView(arrayBuffer);
-          let fontOffset = 0;
-          const magic = data.getUint32(0);
-          if (magic === 0x74746366) {
-            const numFonts = data.getUint32(8);
-            if (numFonts > 0) fontOffset = data.getUint32(12);
-          }
-          
-          let cmapOffset = 0;
-          for (let i = 0; i < data.getUint16(fontOffset + 4); i++) {
-            const recordOffset = fontOffset + 12 + i * 16;
-            const tag = String.fromCharCode(data.getUint8(recordOffset), data.getUint8(recordOffset+1), data.getUint8(recordOffset+2), data.getUint8(recordOffset+3));
-            if (tag === 'cmap') { cmapOffset = data.getUint32(recordOffset + 8); break; }
-          }
-          
-          if (cmapOffset) {
-            let format12Offset = 0, format4Offset = 0;
-            const numRecords = data.getUint16(cmapOffset + 2);
-            for (let i = 0; i < numRecords; i++) {
-              const subtableOffset = cmapOffset + data.getUint32(cmapOffset + 4 + i * 8 + 4);
-              const format = data.getUint16(subtableOffset);
-              if (format === 12) format12Offset = subtableOffset;
-              if (format === 4) format4Offset = subtableOffset;
+          // If opentype.js successfully parsed the font earlier, use it
+          // We need to parse it if we haven't already
+          const font = opentype.parse(arrayBuffer);
+          let supportedCount = 0;
+          for (const emoji of defaultEmojis) {
+            const glyphIndex = font.charToGlyphIndex(emoji);
+            if (glyphIndex > 0) {
+              supportedCount++;
             }
-
-            const emojiRanges = [
-              [0x1F600, 0x1F64F], // Emoticons (Faces)
-              [0x1F900, 0x1F9FF], // Supplemental Faces/Symbols
-              [0x1F300, 0x1F5FF], // Misc Symbols and Pictographs
-              [0x1F680, 0x1F6FF], // Transport and Map
-              [0x1FA70, 0x1FAFF]  // Symbols and Pictographs Extended-A
-            ];
-            const foundEmojis = new Set();
-
-            const checkRange = (startChar, endChar, startGlyph) => {
-              for (const [eStart, eEnd] of emojiRanges) {
-                const overlapStart = Math.max(startChar, eStart);
-                const overlapEnd = Math.min(endChar, eEnd);
-                for (let c = overlapStart; c <= overlapEnd; c++) {
-                  // In Format 12, glyphID = startGlyph + (c - startChar)
-                  // If glyphID is 0, it is .notdef, meaning not actually supported
-                  const glyphId = startGlyph + (c - startChar);
-                  if (glyphId !== 0) {
-                    foundEmojis.add(String.fromCodePoint(c));
-                  }
-                }
-              }
-            };
-
-            if (format12Offset) {
-              const numGroups = data.getUint32(format12Offset + 12);
-              for (let i = 0; i < numGroups; i++) {
-                const groupOffset = format12Offset + 16 + i * 12;
-                checkRange(
-                  data.getUint32(groupOffset), 
-                  data.getUint32(groupOffset + 4),
-                  data.getUint32(groupOffset + 8)
-                );
-              }
-            }
-
-            // We skip format 4 entirely because standard emojis are in Format 12 (BMP supplementary planes)
-            // and checking Format 4 often catches generic text symbols like stars or shapes.
-
-            let allEmojis = Array.from(foundEmojis);
-            
-            // Prioritize faces (0x1F600 - 0x1F64F) so they show up first
-            allEmojis.sort((a, b) => {
-              const codeA = a.codePointAt(0);
-              const codeB = b.codePointAt(0);
-              const isFaceA = (codeA >= 0x1F600 && codeA <= 0x1F64F) ? 1 : 0;
-              const isFaceB = (codeB >= 0x1F600 && codeB <= 0x1F64F) ? 1 : 0;
-              if (isFaceA !== isFaceB) return isFaceB - isFaceA;
-              return codeA - codeB;
-            });
-            
-            extractedEmojis = allEmojis.slice(0, 10);
           }
-        } catch (cmapErr) { console.error('Raw cmap parse failed', cmapErr); }
-
-        if (extractedEmojis.length > 0) {
-          setSupportedEmojis(extractedEmojis);
-          setHasCustomEmojis(true);
-        } else {
-          setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
-          setHasCustomEmojis(false);
+          hasCustom = supportedCount > 0;
+        } catch (e) {
+          console.warn('Opentype parse failed for emojis', e);
         }
+
+        setSupportedEmojis(defaultEmojis);
+        setHasCustomEmojis(hasCustom);
         
       } catch (err) {
         console.error('File read failed', err);
@@ -434,13 +366,20 @@ export default function AddFontPage() {
 
       // Text
       ctx.fillStyle = textColor;
-      // Use fallback directly for emojis if the font doesn't actually support them
-      if (lang.label === '繪文字' && !hasCustomEmojis) {
-        ctx.font = `normal 42px ${fallback}`;
+      ctx.font = `normal 42px ${previewFont}`;
+      
+      if (lang.label === '繪文字') {
+        let currentX = startX + 160;
+        // supportedEmojis is an array of strings like ['😀', '😍', ...]
+        for (const emoji of supportedEmojis) {
+          ctx.fillText(emoji, currentX, startY);
+          let w = ctx.measureText(emoji).width;
+          if (w < 10) w = 45; // Force a minimum width to prevent 0-width stacking
+          currentX += w + 8;
+        }
       } else {
-        ctx.font = `normal 42px ${previewFont}`;
+        ctx.fillText(lang.text, startX + 160, startY);
       }
-      ctx.fillText(lang.text, startX + 160, startY);
       
       startY += lineSpacing;
     });
