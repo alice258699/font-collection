@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './page.module.css';
 import { useTheme } from '@/components/ThemeProvider';
@@ -22,6 +22,8 @@ function FontFamilyCard({ familyName, fonts, theme, setPreviewImageFont, setEdit
         src={displayImage} 
         alt={activeFont.name} 
         className={styles.cardImage} 
+        loading="lazy"
+        decoding="async"
         onClick={() => setPreviewImageFont(activeFont)} 
         style={{ cursor: 'zoom-in' }} 
       />
@@ -119,6 +121,7 @@ export default function Home() {
   const [filteredFonts, setFilteredFonts] = useState([]);
   const [activeTags, setActiveTags] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
@@ -191,8 +194,8 @@ export default function Home() {
       });
     }
     
-    if (searchQuery.trim() !== '') {
-      const lowerQuery = searchQuery.trim().toLowerCase();
+    if (deferredSearchQuery.trim() !== '') {
+      const lowerQuery = deferredSearchQuery.trim().toLowerCase();
       result = result.filter(f => {
         const family = (f.customFamily || extractFamilyAndWeight(f.name).family).toLowerCase();
         const fontName = (f.name || '').toLowerCase();
@@ -212,7 +215,7 @@ export default function Home() {
     }
     
     setFilteredFonts(result);
-  }, [activeTags, fonts, searchQuery]);
+  }, [activeTags, fonts, deferredSearchQuery]);
 
   const toggleTag = (tag) => {
     if (tag === 'All') {
@@ -383,6 +386,12 @@ export default function Home() {
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
           </div>
+        </div>
+
+        <div style={{ marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 500, paddingLeft: '0.5rem' }}>
+          {(searchQuery.trim() !== '' || activeTags.length > 0)
+            ? `篩選結果：找到 ${groupedFonts.length} 個字體家族 (共 ${filteredFonts.length} 款字重)`
+            : `收藏庫：共 ${groupedFonts.length} 個字體家族 (共 ${filteredFonts.length} 款字重)`}
         </div>
 
       {groupedFonts.length === 0 ? (

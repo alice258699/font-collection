@@ -88,7 +88,6 @@ body {
 .orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
   opacity: 0.8;
   animation: float 20s infinite alternate;
 }
@@ -98,7 +97,7 @@ body {
   left: -10%;
   width: 50vw;
   height: 50vw;
-  background: var(--orb-1);
+  background: radial-gradient(circle, var(--orb-1) 0%, transparent 70%);
   animation-delay: 0s;
 }
 
@@ -107,7 +106,7 @@ body {
   right: -10%;
   width: 60vw;
   height: 60vw;
-  background: var(--orb-2);
+  background: radial-gradient(circle, var(--orb-2) 0%, transparent 70%);
   animation-delay: -5s;
 }
 
@@ -116,7 +115,7 @@ body {
   left: 40%;
   width: 40vw;
   height: 40vw;
-  background: var(--orb-3);
+  background: radial-gradient(circle, var(--orb-3) 0%, transparent 70%);
   animation-delay: -10s;
 }
 
