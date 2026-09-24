@@ -58,11 +58,67 @@ function FontFamilyCard({ familyName, fonts, theme, setPreviewImageFont, setEdit
   );
 }
 
+const extractFamilyAndWeight = (name) => {
+  if (!name) return { family: 'Unknown Font', weight: 'Regular' };
+  
+  const exactWeights = ['el', 'ul', 'l', 'r', 'm', 'sb', 'db', 'b', 'eb', 'h', 'ub', 'bl', 'ubl', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9'];
+  const subWeights = ['thin', 'hairline', 'extralight', 'ultralight', 'light', 'regular', 'normal', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy', 'extrablack', 'ultrablack', 'italic', 'oblique', '一分糖', '微糖', '半糖', '七分糖', '九分糖'];
+  
+  let parts = name.trim().split(/[\s-]+/);
+  let familyParts = [];
+  let weightParts = [];
+  let foundModifier = false;
+  
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const lowerPart = part.toLowerCase();
+    
+    const isVersion = /^(v)?\d+(\.\d+)?$/.test(lowerPart);
+    const isExactWeight = exactWeights.includes(lowerPart);
+    const isSubWeight = subWeights.some(w => lowerPart.includes(w));
+    
+    if (isVersion || isExactWeight || isSubWeight) {
+      foundModifier = true;
+    }
+    
+    if (foundModifier) {
+      weightParts.push(part);
+    } else {
+      familyParts.push(part);
+    }
+  }
+  
+  let family = familyParts.join(' ').trim();
+  let weight = weightParts.join(' ').trim();
+  
+  if (familyParts.length === parts.length) {
+    for (const w of subWeights) {
+      if (name.toLowerCase().endsWith(w.toLowerCase())) {
+        family = name.slice(0, -w.length).trim() || name;
+        weight = name.slice(-w.length);
+        break;
+      }
+    }
+  }
+  
+  if (!family) {
+    family = name;
+    weight = 'Regular';
+  }
+  
+  if (!weight) {
+    weight = 'Regular';
+  }
+  
+  return { family, weight };
+};
+
 export default function Home() {
   const { theme } = useTheme();
   const [fonts, setFonts] = useState([]);
   const [filteredFonts, setFilteredFonts] = useState([]);
   const [activeTags, setActiveTags] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
@@ -125,16 +181,38 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (activeTags.length === 0) {
-      setFilteredFonts(fonts);
-    } else {
-      setFilteredFonts(fonts.filter(f => {
+    let result = fonts;
+    
+    if (activeTags.length > 0) {
+      result = result.filter(f => {
         if (!f.tags) return false;
         const fontTagsFlat = Object.values(f.tags).flat();
         return activeTags.every(tag => fontTagsFlat.includes(tag));
-      }));
+      });
     }
-  }, [activeTags, fonts]);
+    
+    if (searchQuery.trim() !== '') {
+      const lowerQuery = searchQuery.trim().toLowerCase();
+      result = result.filter(f => {
+        const family = (f.customFamily || extractFamilyAndWeight(f.name).family).toLowerCase();
+        const fontName = (f.name || '').toLowerCase();
+        const englishName = (f.englishName || '').toLowerCase();
+        
+        let tagsMatch = false;
+        if (f.tags) {
+          const fontTagsFlat = Object.values(f.tags).flat().map(t => t.toLowerCase());
+          tagsMatch = fontTagsFlat.some(tag => tag.includes(lowerQuery));
+        }
+
+        return family.includes(lowerQuery) || 
+               fontName.includes(lowerQuery) || 
+               englishName.includes(lowerQuery) ||
+               tagsMatch;
+      });
+    }
+    
+    setFilteredFonts(result);
+  }, [activeTags, fonts, searchQuery]);
 
   const toggleTag = (tag) => {
     if (tag === 'All') {
@@ -202,67 +280,7 @@ export default function Home() {
     }
   };
 
-  const extractFamilyAndWeight = (name) => {
-    if (!name) return { family: 'Unknown Font', weight: 'Regular' };
-    
-    // Exact match keywords (case insensitive). Must be separate words.
-    const exactWeights = ['el', 'ul', 'l', 'r', 'm', 'sb', 'db', 'b', 'eb', 'h', 'ub', 'bl', 'ubl', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9'];
-    
-    // Substring match keywords (can be attached to the name, e.g. "jf金萱半糖")
-    const subWeights = ['thin', 'hairline', 'extralight', 'ultralight', 'light', 'regular', 'normal', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy', 'extrablack', 'ultrablack', 'italic', 'oblique', '一分糖', '微糖', '半糖', '七分糖', '九分糖'];
-    
-    let parts = name.trim().split(/[\s-]+/);
-    let familyParts = [];
-    let weightParts = [];
-    let foundModifier = false;
-    
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const lowerPart = part.toLowerCase();
-      
-      // A version number is typically isolated digits, maybe with a decimal, optionally starting with 'v'
-      const isVersion = /^(v)?\d+(\.\d+)?$/.test(lowerPart);
-      const isExactWeight = exactWeights.includes(lowerPart);
-      const isSubWeight = subWeights.some(w => lowerPart.includes(w));
-      
-      // If we hit a version number, a known weight, or we already found a modifier
-      if (isVersion || isExactWeight || isSubWeight) {
-        foundModifier = true;
-      }
-      
-      if (foundModifier) {
-        weightParts.push(part);
-      } else {
-        familyParts.push(part);
-      }
-    }
-    
-    let family = familyParts.join(' ').trim();
-    let weight = weightParts.join(' ').trim();
-    
-    // Fallback: Check if the full name ends with a substring weight without a space (e.g. "jf金萱半糖")
-    // Only do this if we didn't find any modifiers through splitting
-    if (familyParts.length === parts.length) {
-      for (const w of subWeights) {
-        if (name.toLowerCase().endsWith(w.toLowerCase())) {
-          family = name.slice(0, -w.length).trim() || name;
-          weight = name.slice(-w.length);
-          break;
-        }
-      }
-    }
-    
-    if (!family) {
-      family = name;
-      weight = 'Regular';
-    }
-    
-    if (!weight) {
-      weight = 'Regular';
-    }
-    
-    return { family, weight };
-  };
+  // extractFamilyAndWeight is moved outside the component
 
   const groupedFonts = [];
   const familyMap = {};
@@ -339,16 +357,33 @@ export default function Home() {
 
       {/* Main Content Grid */}
       <div className={styles.mainContent}>
-        <button 
-          className={`btn btn-secondary ${styles.desktopFilterToggle}`} 
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          style={{ gap: '8px' }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-          </svg>
-          {isSidebarOpen ? '隱藏標籤' : '顯示標籤'}
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          <button 
+            className={`btn btn-secondary ${styles.desktopFilterToggle}`} 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            style={{ gap: '8px', marginBottom: 0 }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+            {isSidebarOpen ? '隱藏標籤' : '顯示標籤'}
+          </button>
+          
+          <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+            <input 
+              type="text" 
+              placeholder="搜尋字體名稱或標籤..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={styles.formControl}
+              style={{ width: '100%', paddingLeft: '2.5rem', marginBottom: 0 }}
+            />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}>
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+        </div>
 
       {groupedFonts.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '4rem' }}>
