@@ -124,11 +124,22 @@ export default function Home() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
   
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 900) {
       setIsSidebarOpen(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 800) {
+        setVisibleCount(prev => prev + 12);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
   
   const [previewImageFont, setPreviewImageFont] = useState(null);
@@ -215,6 +226,7 @@ export default function Home() {
     }
     
     setFilteredFonts(result);
+    setVisibleCount(20);
   }, [activeTags, fonts, deferredSearchQuery]);
 
   const toggleTag = (tag) => {
@@ -400,7 +412,7 @@ export default function Home() {
         </div>
       ) : (
         <div className={styles.grid}>
-          {groupedFonts.map(group => (
+          {groupedFonts.slice(0, visibleCount).map(group => (
             <FontFamilyCard 
               key={group.family}
               familyName={group.family}
