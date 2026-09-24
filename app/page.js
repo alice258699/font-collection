@@ -6,6 +6,58 @@ import { useTheme } from '@/components/ThemeProvider';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
+function FontFamilyCard({ familyName, fonts, theme, setPreviewImageFont, setEditingTagsFont, handleDelete }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeFont = fonts[activeIdx] || fonts[0];
+
+  if (!activeFont) return null;
+
+  const displayImage = (theme === 'dark' && activeFont.imagePathDark) ? activeFont.imagePathDark :
+                       (theme === 'light' && activeFont.imagePathLight) ? activeFont.imagePathLight :
+                       activeFont.imagePathLight || activeFont.imagePathDark;
+
+  return (
+    <div className={styles.card}>
+      <img 
+        src={displayImage} 
+        alt={activeFont.name} 
+        className={styles.cardImage} 
+        onClick={() => setPreviewImageFont(activeFont)} 
+        style={{ cursor: 'zoom-in' }} 
+      />
+      <div className={styles.cardInfo}>
+        <div className={styles.cardHeader}>
+          <div className={styles.cardTitle}>{familyName}</div>
+          <div className={styles.cardActions}>
+            <button className={styles.btnSecondary} onClick={() => setEditingTagsFont(activeFont)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>編輯標籤</button>
+            <button className={styles.deleteBtn} onClick={() => handleDelete(activeFont.id)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>刪除</button>
+          </div>
+        </div>
+
+        {fonts.length > 1 && (
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            {fonts.map((f, idx) => (
+              <button 
+                key={f.id} 
+                onClick={(e) => { e.stopPropagation(); setActiveIdx(idx); }}
+                className={`${styles.weightBtn} ${activeIdx === idx ? styles.activeWeight : ''}`}
+              >
+                {f.parsedWeight}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className={styles.cardTags}>
+          {activeFont.tags && !Array.isArray(activeFont.tags) && Object.values(activeFont.tags).flat().map(tag => (
+            <span key={tag} className={styles.tagBadge}>{tag}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { theme } = useTheme();
   const [fonts, setFonts] = useState([]);
@@ -135,6 +187,43 @@ export default function Home() {
     }
   };
 
+  const extractFamilyAndWeight = (name) => {
+    if (!name) return { family: 'Unknown Font', weight: 'Regular' };
+    const weightKeywords = ['thin', 'hairline', 'extralight', 'ultralight', 'light', 'regular', 'normal', 'medium', 'semibold', 'demibold', 'bold', 'extrabold', 'ultrabold', 'black', 'heavy', 'extrablack', 'ultrablack', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', '一分糖', '微糖', '半糖', '七分糖', '九分糖'];
+    
+    let parts = name.trim().split(/\s+/);
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1];
+      if (weightKeywords.some(w => lastPart.toLowerCase().includes(w))) {
+        return {
+          family: parts.slice(0, -1).join(' '),
+          weight: lastPart
+        };
+      }
+    }
+    
+    for (const w of weightKeywords) {
+      if (name.toLowerCase().endsWith(w.toLowerCase())) {
+        const family = name.slice(0, -w.length).trim() || name;
+        const weight = name.slice(-w.length);
+        if (family !== name) return { family, weight };
+      }
+    }
+    
+    return { family: name, weight: 'Regular' };
+  };
+
+  const groupedFonts = [];
+  const familyMap = {};
+  filteredFonts.forEach(font => {
+    const { family, weight } = extractFamilyAndWeight(font.name);
+    if (!familyMap[family]) {
+      familyMap[family] = [];
+      groupedFonts.push({ family, fonts: familyMap[family] });
+    }
+    familyMap[family].push({ ...font, parsedWeight: weight });
+  });
+
   return (
     <div className={styles.dashboard}>
       
@@ -196,42 +285,23 @@ export default function Home() {
 
       {/* Main Content Grid */}
       <div className={styles.mainContent}>
-      {filteredFonts.length === 0 ? (
+      {groupedFonts.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '4rem' }}>
           尚無字體，請點擊右上角「新增字體」。
         </div>
       ) : (
         <div className={styles.grid}>
-          {filteredFonts.map(font => {
-            const displayImage = (theme === 'dark' && font.imagePathDark) ? font.imagePathDark :
-                                 (theme === 'light' && font.imagePathLight) ? font.imagePathLight :
-                                 font.imagePathLight || font.imagePathDark; // Default
-            return (
-            <div key={font.id} className={styles.card}>
-              <img 
-                src={displayImage} 
-                alt={font.name} 
-                className={styles.cardImage} 
-                onClick={() => setPreviewImageFont(font)} 
-                style={{ cursor: 'zoom-in' }} 
-              />
-              <div className={styles.cardInfo}>
-                <div className={styles.cardHeader}>
-                  <div className={styles.cardTitle}>{font.name}</div>
-                  <div className={styles.cardActions}>
-                    <button className={styles.btnSecondary} onClick={() => setEditingTagsFont(font)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>編輯標籤</button>
-                    <button className={styles.deleteBtn} onClick={() => handleDelete(font.id)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>刪除</button>
-                  </div>
-                </div>
-                <div className={styles.cardTags}>
-                  {font.tags && !Array.isArray(font.tags) && Object.values(font.tags).flat().map(tag => (
-                    <span key={tag} className={styles.tagBadge}>{tag}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            );
-          })}
+          {groupedFonts.map(group => (
+            <FontFamilyCard 
+              key={group.family}
+              familyName={group.family}
+              fonts={group.fonts}
+              theme={theme}
+              setPreviewImageFont={setPreviewImageFont}
+              setEditingTagsFont={setEditingTagsFont}
+              handleDelete={handleDelete}
+            />
+          ))}
         </div>
       )}
       </div>

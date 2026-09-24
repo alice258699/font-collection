@@ -120,6 +120,32 @@
   color: var(--text-primary);
 }
 
+.weightBtn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 100px;
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.weightBtn:hover {
+  background: rgba(100, 100, 100, 0.1);
+  color: var(--text-primary);
+}
+
+.weightBtn.activeWeight {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
+}
+
 .cardTags {
   display: flex;
   gap: 0.4rem;
