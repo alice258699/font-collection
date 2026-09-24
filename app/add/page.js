@@ -114,12 +114,23 @@ export default function AddFontPage() {
         // 1. Raw parser with TextDecoder for robust encoding support
         try {
           const data = new DataView(arrayBuffer);
-          const numTables = data.getUint16(4);
+          let fontOffset = 0;
+          const magic = data.getUint32(0);
+          
+          if (magic === 0x74746366) { // 'ttcf'
+            const numFonts = data.getUint32(8);
+            if (numFonts > 0) {
+              fontOffset = data.getUint32(12);
+            }
+          }
+          
+          const numTables = data.getUint16(fontOffset + 4);
           let nameOffset = 0;
           for (let i = 0; i < numTables; i++) {
-            const tag = String.fromCharCode(data.getUint8(12+i*16), data.getUint8(12+i*16+1), data.getUint8(12+i*16+2), data.getUint8(12+i*16+3));
+            const recordOffset = fontOffset + 12 + i * 16;
+            const tag = String.fromCharCode(data.getUint8(recordOffset), data.getUint8(recordOffset+1), data.getUint8(recordOffset+2), data.getUint8(recordOffset+3));
             if (tag === 'name') {
-              nameOffset = data.getUint32(12+i*16+8);
+              nameOffset = data.getUint32(recordOffset + 8);
               break;
             }
           }
@@ -226,10 +237,18 @@ export default function AddFontPage() {
         let extractedEmojis = [];
         try {
           const data = new DataView(arrayBuffer);
+          let fontOffset = 0;
+          const magic = data.getUint32(0);
+          if (magic === 0x74746366) {
+            const numFonts = data.getUint32(8);
+            if (numFonts > 0) fontOffset = data.getUint32(12);
+          }
+          
           let cmapOffset = 0;
-          for (let i = 0; i < data.getUint16(4); i++) {
-            const tag = String.fromCharCode(data.getUint8(12+i*16), data.getUint8(12+i*16+1), data.getUint8(12+i*16+2), data.getUint8(12+i*16+3));
-            if (tag === 'cmap') { cmapOffset = data.getUint32(12+i*16+8); break; }
+          for (let i = 0; i < data.getUint16(fontOffset + 4); i++) {
+            const recordOffset = fontOffset + 12 + i * 16;
+            const tag = String.fromCharCode(data.getUint8(recordOffset), data.getUint8(recordOffset+1), data.getUint8(recordOffset+2), data.getUint8(recordOffset+3));
+            if (tag === 'cmap') { cmapOffset = data.getUint32(recordOffset + 8); break; }
           }
           
           if (cmapOffset) {
@@ -458,10 +477,10 @@ export default function AddFontPage() {
         <h2 style={{ marginBottom: '1.5rem', color: '#e6edf3' }}>設定預覽參數</h2>
         
         <div className="form-group">
-          <label>上傳字體檔案 (.ttf, .otf, .woff)</label>
+          <label>上傳字體檔案 (.ttf, .otf, .woff, .ttc)</label>
           <input 
             type="file" 
-            accept=".ttf,.otf,.woff,.woff2" 
+            accept=".ttf,.otf,.woff,.woff2,.ttc" 
             onChange={handleFileChange} 
             className="form-control"
             style={{ padding: '0.5rem' }}
