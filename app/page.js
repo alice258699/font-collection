@@ -66,6 +66,12 @@ export default function Home() {
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 900) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
+  
   const [previewImageFont, setPreviewImageFont] = useState(null);
   const [editingTagsFont, setEditingTagsFont] = useState(null);
   const [newTagInputs, setNewTagInputs] = useState({ type: '', language: '', style: '', other: '' });
@@ -285,6 +291,17 @@ export default function Home() {
 
       {/* Main Content Grid */}
       <div className={styles.mainContent}>
+        <button 
+          className={`btn btn-secondary ${styles.desktopFilterToggle}`} 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          style={{ gap: '8px' }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          </svg>
+          {isSidebarOpen ? '隱藏標籤' : '顯示標籤'}
+        </button>
+
       {groupedFonts.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '4rem' }}>
           尚無字體，請點擊右上角「新增字體」。

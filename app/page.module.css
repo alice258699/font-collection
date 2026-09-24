@@ -296,7 +296,17 @@
   pointer-events: auto;
 }
 
+.desktopFilterToggle {
+  display: none;
+}
+
 @media (min-width: 900px) {
+  .desktopFilterToggle {
+    display: inline-flex;
+    margin-bottom: 1.5rem;
+    align-items: center;
+  }
+  
   .dashboard {
     flex-direction: row;
     align-items: flex-start;
@@ -309,7 +319,17 @@
     height: calc(100vh - 4rem);
     overflow-y: auto;
     padding-right: 1rem;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity: 1;
     transform: none !important;
+  }
+  
+  .sidebarWrapper:not(.open) {
+    flex: 0 0 0px;
+    padding: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-right: 0;
   }
   
   .mobileFilterBtn, .mobileOverlay {
