@@ -373,7 +373,8 @@ export default function AddFontPage() {
     ctx.fillRect(0, 0, 1200, 1060); // Use original coordinates since we scaled the context
 
     // Setup typography
-    const fallback = 'system-ui, -apple-system, sans-serif';
+    // Explicitly including Color Emoji fonts prevents the Canvas monochrome stacking bug
+    const fallback = 'system-ui, -apple-system, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
     const previewFont = `${previewFontFamily}, ` + fallback;
     
     ctx.textAlign = 'center';
