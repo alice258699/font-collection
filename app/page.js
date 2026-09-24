@@ -29,7 +29,7 @@ function FontFamilyCard({ familyName, fonts, theme, setPreviewImageFont, setEdit
         <div className={styles.cardHeader}>
           <div className={styles.cardTitle}>{familyName}</div>
           <div className={styles.cardActions}>
-            <button className={styles.btnSecondary} onClick={() => setEditingTagsFont(activeFont)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>編輯標籤</button>
+            <button className={styles.btnSecondary} onClick={() => setEditingTagsFont(activeFont)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>編輯資訊</button>
             <button className={styles.deleteBtn} onClick={() => handleDelete(activeFont.id)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>刪除</button>
           </div>
         </div>
@@ -74,7 +74,16 @@ export default function Home() {
   
   const [previewImageFont, setPreviewImageFont] = useState(null);
   const [editingTagsFont, setEditingTagsFont] = useState(null);
+  const [editInfo, setEditInfo] = useState({ customFamily: '', customWeight: '' });
   const [newTagInputs, setNewTagInputs] = useState({ type: '', language: '', style: '', other: '' });
+
+  const openEditModal = (font) => {
+    setEditingTagsFont(font);
+    setEditInfo({
+      customFamily: font.customFamily || '',
+      customWeight: font.customWeight || ''
+    });
+  };
 
   const fetchFonts = async () => {
     try {
@@ -222,7 +231,10 @@ export default function Home() {
   const groupedFonts = [];
   const familyMap = {};
   filteredFonts.forEach(font => {
-    const { family, weight } = extractFamilyAndWeight(font.name);
+    const extracted = extractFamilyAndWeight(font.name);
+    const family = font.customFamily || extracted.family;
+    const weight = font.customWeight || extracted.weight;
+    
     if (!familyMap[family]) {
       familyMap[family] = [];
       groupedFonts.push({ family, fonts: familyMap[family] });
@@ -315,7 +327,7 @@ export default function Home() {
               fonts={group.fonts}
               theme={theme}
               setPreviewImageFont={setPreviewImageFont}
-              setEditingTagsFont={setEditingTagsFont}
+              setEditingTagsFont={openEditModal}
               handleDelete={handleDelete}
             />
           ))}
@@ -347,16 +359,64 @@ export default function Home() {
         <div className={styles.modalOverlay} onClick={() => setEditingTagsFont(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <button className={styles.closeBtn} onClick={() => setEditingTagsFont(null)}>&times;</button>
           
-          <div className={`glass-panel ${styles.modalContent}`} onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', margin: 'auto', textAlign: 'left' }}>
+          <div className={`glass-panel ${styles.modalContent}`} onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', margin: 'auto', textAlign: 'left', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ padding: '2rem' }}>
               <div className={styles.modalDetails}>
-                <div>
-                  <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem', textAlign: 'left' }}>{editingTagsFont.name}</h2>
-                  <p style={{ color: 'var(--text-secondary)' }}>{editingTagsFont.englishName}</p>
+                <div style={{ width: '100%' }}>
+                  <h2 style={{ fontSize: '1.8rem', marginBottom: '0.5rem', textAlign: 'left' }}>編輯資訊：{editingTagsFont.name}</h2>
+                  
+                  {/* Manual Grouping Section */}
+                  <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--glass-bg)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>手動分群設定 (選填)</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                      若自動分群失敗，您可以手動指定相同的「家族名稱」來將不同的字體強制收合在同一張卡片中。
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>自訂家族名稱</label>
+                        <input 
+                          type="text" 
+                          value={editInfo.customFamily} 
+                          onChange={e => setEditInfo(prev => ({ ...prev, customFamily: e.target.value }))}
+                          placeholder={extractFamilyAndWeight(editingTagsFont.name).family}
+                          className={styles.tagInput}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>自訂字重/款式名稱</label>
+                        <input 
+                          type="text" 
+                          value={editInfo.customWeight} 
+                          onChange={e => setEditInfo(prev => ({ ...prev, customWeight: e.target.value }))}
+                          placeholder={extractFamilyAndWeight(editingTagsFont.name).weight}
+                          className={styles.tagInput}
+                          style={{ width: '100%' }}
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={async () => {
+                        try {
+                          await updateDoc(doc(db, 'fonts', editingTagsFont.id), { 
+                            customFamily: editInfo.customFamily.trim(), 
+                            customWeight: editInfo.customWeight.trim() 
+                          });
+                          fetchFonts();
+                          setEditingTagsFont(null);
+                        } catch (err) {
+                          console.error('Update failed', err);
+                        }
+                      }}
+                    >
+                      儲存分群設定
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ marginTop: '1.5rem' }}>
+              <div style={{ marginTop: '2rem' }}>
                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>編輯標籤 Tags</h3>
                 <div className={styles.tagEditor} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'flex-start' }}>
                   {[{key: 'type', label: '字體類型'}, {key: 'language', label: '語言'}, {key: 'style', label: '風格'}, {key: 'other', label: '其他'}].map(cat => (
