@@ -20,10 +20,14 @@ export default function AddFontPage() {
   const router = useRouter();
   const { theme } = useTheme();
   const [fontFile, setFontFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [fontUrl, setFontUrl] = useState('');
   const [fontName, setFontName] = useState('');
   const [fontEnglishName, setFontEnglishName] = useState('');
   const [fontLoaded, setFontLoaded] = useState(false);
+  const [previewFontFamily, setPreviewFontFamily] = useState('PreviewFont');
+  const [isSaving, setIsSaving] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [previewFontFamily, setPreviewFontFamily] = useState('PreviewFont');
   const [isSaving, setIsSaving] = useState(false);
   const [fontTags, setFontTags] = useState({ type: [], language: [], style: [], other: [] });
@@ -97,174 +101,176 @@ export default function AddFontPage() {
     }));
   };
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const parseFontFile = async (file) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const nameWithoutExt = file.name.split('.').slice(0, -1).join('.');
+    let foundEngName = nameWithoutExt;
+    let foundLocalName = null;
+    let hasCustom = false;
+    const defaultEmojis = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
+    let finalEmojis = defaultEmojis;
+    
+    // 1. Raw parser with TextDecoder for robust encoding support
+    try {
+      const data = new DataView(arrayBuffer);
+      let fontOffset = 0;
+      const magic = data.getUint32(0);
+      
+      if (magic === 0x74746366) { // 'ttcf'
+        const numFonts = data.getUint32(8);
+        if (numFonts > 0) {
+          fontOffset = data.getUint32(12);
+        }
+      }
+      
+      const numTables = data.getUint16(fontOffset + 4);
+      let nameOffset = 0;
+      for (let i = 0; i < numTables; i++) {
+        const recordOffset = fontOffset + 12 + i * 16;
+        const tag = String.fromCharCode(data.getUint8(recordOffset), data.getUint8(recordOffset+1), data.getUint8(recordOffset+2), data.getUint8(recordOffset+3));
+        if (tag === 'name') {
+          nameOffset = data.getUint32(recordOffset + 8);
+          break;
+        }
+      }
+      if (nameOffset) {
+        const count = data.getUint16(nameOffset + 2);
+        const stringOffset = data.getUint16(nameOffset + 4);
+        
+        for (let i = 0; i < count; i++) {
+          const recordOffset = nameOffset + 6 + i * 12;
+          const platformID = data.getUint16(recordOffset);
+          const encodingID = data.getUint16(recordOffset + 2);
+          const languageID = data.getUint16(recordOffset + 4);
+          const nameID = data.getUint16(recordOffset + 6);
+          const length = data.getUint16(recordOffset + 8);
+          const offset = data.getUint16(recordOffset + 10);
+          
+          if (nameID !== 1 && nameID !== 4 && nameID !== 16) continue;
+          
+          const bytes = new Uint8Array(arrayBuffer, nameOffset + stringOffset + offset, length);
+          let str = '';
+          
+          try {
+            if (platformID === 3 || platformID === 0) {
+              str = new TextDecoder('utf-16be').decode(bytes);
+            } else if (platformID === 1) {
+              if (encodingID === 2) str = new TextDecoder('big5').decode(bytes);
+              else if (encodingID === 1) str = new TextDecoder('shift-jis').decode(bytes);
+              else if (encodingID === 25) str = new TextDecoder('gbk').decode(bytes);
+              else if (encodingID === 3) str = new TextDecoder('euc-kr').decode(bytes);
+              else str = new TextDecoder('macintosh').decode(bytes);
+            }
+          } catch (e) {
+            str = new TextDecoder('utf-8').decode(bytes);
+          }
+          
+          str = str.replace(/\0/g, '').trim();
+          if (!str) continue;
 
+          const hasLocalCharacters = (s) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(s);
+          
+          if (hasLocalCharacters(str)) {
+            if (!foundLocalName) foundLocalName = str;
+          } else {
+            if (str.toLowerCase() !== 'regular' && str.length > 2) {
+              if (foundEngName === nameWithoutExt || str.length < foundEngName.length) {
+                foundEngName = str;
+              }
+            }
+          }
+        }
+      }
+    } catch (rawErr) {
+      console.error('Raw parse failed', rawErr);
+    }
+
+    // 2. Fallback to opentype.js if raw parser didn't find anything
+    if (!foundLocalName || foundEngName === nameWithoutExt) {
+      try {
+        const font = opentype.parse(arrayBuffer);
+        const names = font.names;
+        
+        if (names) {
+          if (foundEngName === nameWithoutExt) {
+            if (names.preferredFamily?.en) foundEngName = names.preferredFamily.en;
+            else if (names.fontFamily?.en) foundEngName = names.fontFamily.en;
+            else if (names.fullName?.en) foundEngName = names.fullName.en;
+          }
+          
+          if (!foundLocalName) {
+            const hasLocalCharacters = (str) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(str);
+            const fieldsToCheck = ['fontFamily', 'preferredFamily', 'fullName'];
+            for (const field of fieldsToCheck) {
+              if (names[field]) {
+                const values = Object.values(names[field]);
+                const localVal = values.find(v => typeof v === 'string' && hasLocalCharacters(v));
+                if (localVal) {
+                  foundLocalName = localVal;
+                  break;
+                }
+              }
+            }
+            if (!foundLocalName && names.fontFamily) {
+              const otherKeys = Object.keys(names.fontFamily).filter(k => k !== 'en' && !k.includes('mac'));
+              if (otherKeys.length > 0) foundLocalName = names.fontFamily[otherKeys[0]];
+            }
+          }
+        }
+      } catch(e) {
+        console.warn('Opentype parse failed', e);
+      }
+    }
+
+    // 3. Check emoji support
+    try {
+      const font = opentype.parse(arrayBuffer);
+      let supportedCount = 0;
+      for (const emoji of defaultEmojis) {
+        const glyphIndex = font.charToGlyphIndex(emoji);
+        if (glyphIndex > 0) {
+          supportedCount++;
+        }
+      }
+      hasCustom = supportedCount > 0;
+    } catch (e) {
+      console.warn('Opentype parse failed for emojis', e);
+    }
+
+    return {
+      localName: foundLocalName || foundEngName,
+      engName: foundEngName,
+      emojis: defaultEmojis,
+      hasCustomEmojis: hasCustom
+    };
+  };
+
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setSelectedFiles(files);
+    
+    // Always preview the first file
+    const file = files[0];
     const url = URL.createObjectURL(file);
     setFontFile(file);
     setFontUrl(url);
 
-    const nameWithoutExt = file.name.split('.').slice(0, -1).join('.');
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        
-        let foundEngName = nameWithoutExt;
-        let foundLocalName = null;
-        
-        // 1. Raw parser with TextDecoder for robust encoding support
-        try {
-          const data = new DataView(arrayBuffer);
-          let fontOffset = 0;
-          const magic = data.getUint32(0);
-          
-          if (magic === 0x74746366) { // 'ttcf'
-            const numFonts = data.getUint32(8);
-            if (numFonts > 0) {
-              fontOffset = data.getUint32(12);
-            }
-          }
-          
-          const numTables = data.getUint16(fontOffset + 4);
-          let nameOffset = 0;
-          for (let i = 0; i < numTables; i++) {
-            const recordOffset = fontOffset + 12 + i * 16;
-            const tag = String.fromCharCode(data.getUint8(recordOffset), data.getUint8(recordOffset+1), data.getUint8(recordOffset+2), data.getUint8(recordOffset+3));
-            if (tag === 'name') {
-              nameOffset = data.getUint32(recordOffset + 8);
-              break;
-            }
-          }
-          if (nameOffset) {
-            const count = data.getUint16(nameOffset + 2);
-            const stringOffset = data.getUint16(nameOffset + 4);
-            
-            for (let i = 0; i < count; i++) {
-              const recordOffset = nameOffset + 6 + i * 12;
-              const platformID = data.getUint16(recordOffset);
-              const encodingID = data.getUint16(recordOffset + 2);
-              const languageID = data.getUint16(recordOffset + 4);
-              const nameID = data.getUint16(recordOffset + 6);
-              const length = data.getUint16(recordOffset + 8);
-              const offset = data.getUint16(recordOffset + 10);
-              
-              if (nameID !== 1 && nameID !== 4 && nameID !== 16) continue;
-              
-              const bytes = new Uint8Array(arrayBuffer, nameOffset + stringOffset + offset, length);
-              let str = '';
-              
-              try {
-                if (platformID === 3 || platformID === 0) {
-                  // Windows / Unicode is always UTF-16BE
-                  str = new TextDecoder('utf-16be').decode(bytes);
-                } else if (platformID === 1) {
-                  // Mac encodings
-                  if (encodingID === 2) str = new TextDecoder('big5').decode(bytes);
-                  else if (encodingID === 1) str = new TextDecoder('shift-jis').decode(bytes);
-                  else if (encodingID === 25) str = new TextDecoder('gbk').decode(bytes);
-                  else if (encodingID === 3) str = new TextDecoder('euc-kr').decode(bytes);
-                  else str = new TextDecoder('macintosh').decode(bytes);
-                }
-              } catch (e) {
-                // If specific decoder fails, fallback to utf-8 just in case
-                str = new TextDecoder('utf-8').decode(bytes);
-              }
-              
-              // Clean up string
-              str = str.replace(/\0/g, '').trim();
-              
-              if (!str) continue;
-
-              const hasLocalCharacters = (s) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(s);
-              
-              if (hasLocalCharacters(str)) {
-                if (!foundLocalName) foundLocalName = str;
-              } else {
-                // Keep the shortest english name that isn't just "Regular"
-                if (str.toLowerCase() !== 'regular' && str.length > 2) {
-                  if (foundEngName === nameWithoutExt || str.length < foundEngName.length) {
-                    foundEngName = str;
-                  }
-                }
-              }
-            }
-          }
-        } catch (rawErr) {
-          console.error('Raw parse failed', rawErr);
-        }
-
-        // 2. Fallback to opentype.js if raw parser didn't find anything
-        if (!foundLocalName || foundEngName === nameWithoutExt) {
-          try {
-            const font = opentype.parse(arrayBuffer);
-            const names = font.names;
-            
-            if (names) {
-              if (foundEngName === nameWithoutExt) {
-                if (names.preferredFamily?.en) foundEngName = names.preferredFamily.en;
-                else if (names.fontFamily?.en) foundEngName = names.fontFamily.en;
-                else if (names.fullName?.en) foundEngName = names.fullName.en;
-              }
-              
-              if (!foundLocalName) {
-                const hasLocalCharacters = (str) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(str);
-                const fieldsToCheck = ['fontFamily', 'preferredFamily', 'fullName'];
-                for (const field of fieldsToCheck) {
-                  if (names[field]) {
-                    const values = Object.values(names[field]);
-                    const localVal = values.find(v => typeof v === 'string' && hasLocalCharacters(v));
-                    if (localVal) {
-                      foundLocalName = localVal;
-                      break;
-                    }
-                  }
-                }
-                if (!foundLocalName && names.fontFamily) {
-                  const otherKeys = Object.keys(names.fontFamily).filter(k => k !== 'en' && !k.includes('mac'));
-                  if (otherKeys.length > 0) foundLocalName = names.fontFamily[otherKeys[0]];
-                }
-              }
-            }
-          } catch(e) {
-            console.warn('Opentype parse failed', e);
-          }
-        }
-
-        // ... opentype fallback handles foundEngName, foundLocalName ...
-        setFontEnglishName(foundEngName);
-        setFontName(foundLocalName || foundEngName);
-        
-        // 3. Check emoji support using opentype.js
-        const defaultEmojis = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
-        let hasCustom = false;
-        
-        try {
-          // If opentype.js successfully parsed the font earlier, use it
-          // We need to parse it if we haven't already
-          const font = opentype.parse(arrayBuffer);
-          let supportedCount = 0;
-          for (const emoji of defaultEmojis) {
-            const glyphIndex = font.charToGlyphIndex(emoji);
-            if (glyphIndex > 0) {
-              supportedCount++;
-            }
-          }
-          hasCustom = supportedCount > 0;
-        } catch (e) {
-          console.warn('Opentype parse failed for emojis', e);
-        }
-
-        setSupportedEmojis(defaultEmojis);
-        setHasCustomEmojis(hasCustom);
-        
-      } catch (err) {
-        console.error('File read failed', err);
-        setFontEnglishName(nameWithoutExt);
-        setFontName(nameWithoutExt);
-        setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
-        setHasCustomEmojis(false);
-      }
+    try {
+      const { localName, engName, emojis, hasCustomEmojis } = await parseFontFile(file);
+      setFontName(localName);
+      setFontEnglishName(engName);
+      setSupportedEmojis(emojis);
+      setHasCustomEmojis(hasCustomEmojis);
+    } catch (err) {
+      console.error('File read failed', err);
+      const nameWithoutExt = file.name.split('.').slice(0, -1).join('.');
+      setFontName(nameWithoutExt);
+      setFontEnglishName(nameWithoutExt);
+      setSupportedEmojis(['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻']);
+      setHasCustomEmojis(false);
+    }
   };
 
   useEffect(() => {
@@ -293,7 +299,7 @@ export default function AddFontPage() {
     drawCanvasCore(theme === 'light', 1);
   };
 
-  const drawCanvasCore = (isLight, scale = 1) => {
+  const drawCanvasCore = (isLight, scale = 1, overrideName, overrideEnglishName, overrideFamily, overrideEmojis) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -318,21 +324,21 @@ export default function AddFontPage() {
     ctx.fillRect(0, 0, 1200, 1060); // Use original coordinates since we scaled the context
 
     // Setup typography
-    // Explicitly including Color Emoji fonts prevents the Canvas monochrome stacking bug
     const fallback = 'system-ui, -apple-system, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-    const previewFont = `${previewFontFamily}, ` + fallback;
+    const currentFamily = overrideFamily || previewFontFamily;
+    const previewFont = `${currentFamily}, ` + fallback;
     
     ctx.textAlign = 'center';
     
     // Draw Title
     ctx.fillStyle = textColor;
     ctx.font = `normal 76px ${previewFont}`;
-    ctx.fillText(fontName || 'Font Name', 600, 180);
+    ctx.fillText(overrideName || fontName || 'Font Name', 600, 180);
 
     // Draw English Name
     ctx.fillStyle = secondaryColor;
     ctx.font = `italic 40px ${previewFont}`;
-    ctx.fillText(fontEnglishName || 'Font English Name', 600, 260);
+    ctx.fillText(overrideEnglishName || fontEnglishName || 'Font English Name', 600, 260);
 
     // Draw line separator
     ctx.strokeStyle = borderColor;
@@ -348,6 +354,8 @@ export default function AddFontPage() {
     let startY = 430;
     const lineSpacing = 80;
 
+    const currentEmojis = overrideEmojis || supportedEmojis;
+
     const languages = [
       { label: '繁體中文', text: tcText },
       { label: '注音符號', text: bpmfText },
@@ -355,7 +363,7 @@ export default function AddFontPage() {
       { label: '日本語', text: jpText },
       { label: 'English', text: enText },
       { label: '한국어', text: krText },
-      { label: '繪文字', text: supportedEmojis.join(' ') }
+      { label: '繪文字', text: currentEmojis.join(' ') }
     ];
 
     languages.forEach((lang) => {
@@ -370,8 +378,7 @@ export default function AddFontPage() {
       
       if (lang.label === '繪文字') {
         let currentX = startX + 160;
-        // supportedEmojis is an array of strings like ['😀', '😍', ...]
-        for (const emoji of supportedEmojis) {
+        for (const emoji of currentEmojis) {
           ctx.fillText(emoji, currentX, startY);
           let w = ctx.measureText(emoji).width;
           if (w < 10) w = 45; // Force a minimum width to prevent 0-width stacking
@@ -386,43 +393,90 @@ export default function AddFontPage() {
   };
 
   const handleSave = async () => {
-    if (!fontFile || !fontName || !fontEnglishName) {
-      alert('請上傳字體並填寫字體名稱！');
+    if (selectedFiles.length === 0) {
+      alert('請上傳字體！');
       return;
     }
 
     setIsSaving(true);
     
     try {
-      const canvas = canvasRef.current;
-      
-      // Generate Light image (Use full resolution WebP for sharp text, small file size)
-      drawCanvasCore(true, 1);
-      const base64ImageLight = canvas.toDataURL('image/webp', 0.6);
-      
-      // Generate Dark image (Use full resolution WebP for sharp text, small file size)
-      drawCanvasCore(false, 1);
-      const base64ImageDark = canvas.toDataURL('image/webp', 0.6);
-      
-      // Restore current theme preview at full resolution
-      drawCanvasCore(theme === 'light', 1);
+      if (selectedFiles.length === 1) {
+        // Single File Save
+        const canvas = canvasRef.current;
+        drawCanvasCore(true, 1);
+        const base64ImageLight = canvas.toDataURL('image/webp', 0.6);
+        drawCanvasCore(false, 1);
+        const base64ImageDark = canvas.toDataURL('image/webp', 0.6);
+        drawCanvasCore(theme === 'light', 1);
 
-      // Because Firebase Storage now requires a Blaze (paid) plan, 
-      // we bypass it entirely by storing the compressed Base64 JPEG directly into Firestore!
-      // Firestore has a 1MB limit per document. At 0.5 scale and 0.5 jpeg quality,
-      // the images are ~30KB each, easily fitting in the 1MB limit.
-      const newFont = {
-        name: fontName,
-        englishName: fontEnglishName,
-        imagePathLight: base64ImageLight,
-        imagePathDark: base64ImageDark,
-        tags: fontTags,
-        createdAt: new Date().toISOString()
-      };
+        const newFont = {
+          name: fontName,
+          englishName: fontEnglishName,
+          imagePathLight: base64ImageLight,
+          imagePathDark: base64ImageDark,
+          tags: fontTags,
+          createdAt: new Date().toISOString()
+        };
 
-      await addDoc(collection(db, 'fonts'), newFont);
+        await addDoc(collection(db, 'fonts'), newFont);
+      } else {
+        // Batch Save
+        for (let i = 0; i < selectedFiles.length; i++) {
+          setBatchProgress({ current: i + 1, total: selectedFiles.length });
+          const file = selectedFiles[i];
+          
+          let localName = '';
+          let engName = '';
+          let emojis = [];
+          
+          try {
+            const parsed = await parseFontFile(file);
+            localName = parsed.localName;
+            engName = parsed.engName;
+            emojis = parsed.emojis;
+          } catch (e) {
+            localName = file.name.split('.').slice(0, -1).join('.');
+            engName = localName;
+            emojis = ['😀', '😍', '🤔', '😂', '😭', '🥺', '🥳', '😎', '🤯', '👻'];
+          }
 
-      // Redirect to home
+          const url = URL.createObjectURL(file);
+          const uniqueFamily = `BatchFont_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+          const fontFace = new FontFace(uniqueFamily, `url(${url})`);
+          
+          await fontFace.load();
+          document.fonts.add(fontFace);
+          
+          // Draw and save
+          const canvas = canvasRef.current;
+          
+          // Small delay to ensure browser paints/registers the fontface properly in DOM
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          drawCanvasCore(true, 1, localName, engName, uniqueFamily, emojis);
+          const base64ImageLight = canvas.toDataURL('image/webp', 0.6);
+          
+          drawCanvasCore(false, 1, localName, engName, uniqueFamily, emojis);
+          const base64ImageDark = canvas.toDataURL('image/webp', 0.6);
+          
+          const newFont = {
+            name: localName,
+            englishName: engName,
+            imagePathLight: base64ImageLight,
+            imagePathDark: base64ImageDark,
+            tags: fontTags, // Use the globally set tags for all batch fonts!
+            createdAt: new Date().toISOString()
+          };
+          
+          await addDoc(collection(db, 'fonts'), newFont);
+          
+          // Cleanup
+          URL.revokeObjectURL(url);
+          document.fonts.delete(fontFace);
+        }
+      }
+
       router.push('/');
     } catch (err) {
       console.error(err);
@@ -438,15 +492,25 @@ export default function AddFontPage() {
         <h2 style={{ marginBottom: '1.5rem', color: '#e6edf3' }}>設定預覽參數</h2>
         
         <div className="form-group">
-          <label>上傳字體檔案 (.ttf, .otf, .woff, .ttc)</label>
+          <label>上傳字體檔案 (可多選批量匯入)</label>
           <input 
             type="file" 
             accept=".ttf,.otf,.woff,.woff2,.ttc" 
+            multiple
             onChange={handleFileChange} 
             className="form-control"
             style={{ padding: '0.5rem' }}
           />
         </div>
+        
+        {selectedFiles.length > 1 && (
+          <div style={{ padding: '1rem', background: 'rgba(10, 132, 255, 0.1)', border: '1px solid var(--accent-blue)', borderRadius: '12px', marginBottom: '1.5rem' }}>
+            <h3 style={{ color: 'var(--accent-blue)', fontSize: '1rem', marginBottom: '0.5rem' }}>批量匯入模式</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+              您已選擇 {selectedFiles.length} 個字體檔案。系統將會自動提取所有字體名稱，並使用下方的「預覽句」與「標籤」套用至所有選擇的字體，一鍵完成處理！
+            </p>
+          </div>
+        )}
 
         <div className="form-group">
           <label>字體名稱 (例如: 淚體)</label>
@@ -497,10 +561,10 @@ export default function AddFontPage() {
           <button 
             className="btn btn-primary" 
             onClick={handleSave}
-            disabled={!fontLoaded || isSaving}
+            disabled={selectedFiles.length === 0 || (!fontLoaded && selectedFiles.length === 1) || isSaving}
             style={{ width: '100%' }}
           >
-            {isSaving ? '儲存中...' : '匯出至字體大全'}
+            {isSaving ? (selectedFiles.length > 1 ? `批量匯入中... (${batchProgress.current}/${batchProgress.total})` : '儲存中...') : (selectedFiles.length > 1 ? `批量匯出 ${selectedFiles.length} 個字體` : '匯出至字體大全')}
           </button>
         </div>
       </div>
