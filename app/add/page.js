@@ -3,9 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import * as opentype from 'opentype.js';
 import styles from './page.module.css';
 
@@ -28,8 +27,6 @@ export default function AddFontPage() {
   const [previewFontFamily, setPreviewFontFamily] = useState('PreviewFont');
   const [isSaving, setIsSaving] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
-  const [previewFontFamily, setPreviewFontFamily] = useState('PreviewFont');
-  const [isSaving, setIsSaving] = useState(false);
   const [fontTags, setFontTags] = useState({ type: [], language: [], style: [], other: [] });
   const [allTags, setAllTags] = useState({ type: [], language: [], style: [], other: [] });
   const [newTagInputs, setNewTagInputs] = useState({ type: '', language: '', style: '', other: '' });
